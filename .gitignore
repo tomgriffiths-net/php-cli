@@ -1,0 +1,12 @@
+.extra/**
+backups/**
+ffmpeg/**
+logs/**
+mcservers/**
+mywebsite/**
+packages/**
+php/**
+temp/**
+p
+settings.json
+UpdateCore.bat
