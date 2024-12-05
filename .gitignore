@@ -1,12 +1,4 @@
-.extra/**
-backups/**
-ffmpeg/**
-logs/**
-mcservers/**
-mywebsite/**
-packages/**
-php/**
-temp/**
-p
-settings.json
-UpdateCore.bat
+!core/**
+!cli.php
+!install.bat
+!start.bat
