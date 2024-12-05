@@ -18,4 +18,4 @@ if(php_sapi_name() !== "cli"){
 chdir(dirname(__FILE__));
 
 //Start the program
-require 'core/start.php';
+require 'core/start.php';//
