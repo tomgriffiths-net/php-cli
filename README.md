@@ -43,19 +43,30 @@ command line argument conversion examples:
     "words" -> "words" (string)
 
 accepted argument values:
-    first-time-startup          : Expects boolean, default is false (bool). Used by start.bat to indecate new install.
-    verbose-logging             : Expexts boolean, default is false (bool). Used to display more logs, set in fileArguments for most logs as it tiakes time to read command line arguments.
-    use-file-as-input           : Expects false (bool) or a file path (string), default is false (bool). When set to a file path, the program will attempt to execute the first line of the text file as a command and delete the file when the command has finnished, then wait a number of seconds before checking if the file exists again.
-    file-as-input-delay         : Expects integer, default is 10 (int). Specifies the number of seconds the program waits before checking if the use-file-as-input file exists again.
-    no-loop                     : Expects boolean, default is false (bool). Specifies weather the program should exit or await user input after a command or group of commands have been executed.
-    command                     : Expects false (bool) or full command (string). Specifies a command that should be run when startup has completed.
+    first-time-startup
+        Expects boolean, default is false (bool). Used by start.bat to indecate new install.
+    verbose-logging
+        Expexts boolean, default is false (bool). Used to display more logs, set in fileArguments for most logs as it tiakes time to read command line arguments.
+    use-file-as-input
+        Expects false (bool) or a file path (string), default is false (bool). When set to a file path, the program will attempt to execute the first line of the text file as a command and delete the file when the command has finnished, then wait a number of seconds before checking if the file exists again.
+    file-as-input-delay
+        Expects integer, default is 10 (int). Specifies the number of seconds the program waits before checking if the use-file-as-input file exists again.
+    no-loop
+        Expects boolean, default is false (bool). Specifies weather the program should exit or await user input after a command or group of commands have been executed.
+    command
+        Expects false (bool) or full command (string). Specifies a command that should be run when startup has completed.
 
 
 -- Default Functions --
 
-mklog($type,$message,$verbose=true)  : The function mklog creates a log with a specific type and message. The common types are: general, warning, error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose option is a boolean and if set to true then it will only make the log if verbose logging is enabled.
-verboseLogging()                     : The function verboseLogging returns the value of the verbose-logging argument.
-cli_run($line)                       : The function cli_run is the function called when a command is entered into the cli, any string put into $line will be run as if it were a command.
+mklog($type,$message,$verbose=true)
+The function mklog creates a log with a specific type and message. The common types are: general, warning, error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose option is a boolean and if set to true then it will only make the log if verbose logging is enabled.
+
+verboseLogging()
+The function verboseLogging returns the value of the verbose-logging argument.
+
+cli_run($line)
+The function cli_run is the function called when a command is entered into the cli, any string put into $line will be run as if it were a command.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
