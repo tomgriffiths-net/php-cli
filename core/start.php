@@ -1,6 +1,4 @@
 <?php
-date_default_timezone_set("Etc/GMT-1");
-
 $startTime = floor(microtime(true)*1000);
 mklog('general','Starting',false);//DO NOT EDIT THIS LINE - the string 'Starting' tells the mklog() function to begin logging and set variables
 
