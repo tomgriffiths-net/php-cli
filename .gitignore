@@ -1,5 +1,6 @@
 .extra/**
 backups/**
+conductor/**
 ffmpeg/**
 logs/**
 mcservers/**
@@ -7,6 +8,7 @@ mywebsite/**
 packages/**
 php/**
 temp/**
+videoencoder/**
 p
 settings.json
 UpdateCore.bat
