@@ -625,7 +625,7 @@ class files{
     }
 }
 class json{
-    public static function addToFile($path,$entryKey,$entryValue,$addToTop=true){
+    public static function addToFile($path,$entryKey,$entryValue,$addToTop=true):bool{
         $existing = self::readFile($path);
         if($addToTop === true){
             $new[$entryKey] = $entryValue;
@@ -636,7 +636,7 @@ class json{
         if($addToTop === false){
             $new[$entryKey] = $entryValue;
         }
-        self::writeFile($path,$new,true);
+        return self::writeFile($path,$new,true);
     }
     public static function readFile($path,$createIfNonexistant=true,$expectedValues=array()):mixed{
         //Chech if file exists
@@ -799,5 +799,6 @@ class user_input{
         else{
             goto start;
         }
+        return false;
     }
 }
