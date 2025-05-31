@@ -15,7 +15,7 @@ class pkgmgr{
                     $columnNames["Package Description"] = 40;
                 }
                 elseif($lines[1] === "depend"){
-                    $columnNames["Package Description"] = 40;
+                    $columnNames["Package Dependencies"] = 40;
                 }
             }
             $columnNames["Version"] = 8;
