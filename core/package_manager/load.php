@@ -502,4 +502,44 @@ class pkgmgr{
         }
         return $return;
     }
+    public static function getLatestPhpUrl():string|false{
+        $data = json::readFile('https://windows.php.net/downloads/releases/releases.json',false);
+        
+        //Major version search
+        $currentVersion = "0";
+        foreach($data as $version => $versionData){
+            if(floatval($version) > floatval($currentVersion)){
+                $currentVersion = $version;
+            }
+        }
+
+        if(!isset($data[$currentVersion])){
+            return false;
+        }
+        $data = $data[$currentVersion];
+
+        //Type search
+        $currentVersion = "";
+        foreach($data as $version => $versionData){
+            if(substr($version,0,3) === "ts-" && substr($version, -4) === "-x64"){
+                $currentVersion = $version;
+                break;
+            }
+        }
+
+        if(!isset($data[$currentVersion])){
+            return false;
+        }
+        $data = $data[$currentVersion];
+
+        //Final check
+        if(!isset($data['zip'])){
+            return false;
+        }
+        if(!isset($data['zip']['path'])){
+            return false;
+        }
+
+        return 'https://windows.php.net/downloads/releases/' . $data['zip']['path'];
+    }
 }
