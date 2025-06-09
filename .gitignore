@@ -1,4 +1,3 @@
-.extra/**
 backups/**
 conductor/**
 ffmpeg/**
@@ -12,4 +11,3 @@ videoencoder/**
 p
 settings.json
 UpdateCore.bat
-latest.zip
