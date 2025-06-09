@@ -86,7 +86,7 @@ Available resources included with the core:
 - **data_types::string_to_integer(string $string):int**: Converts string to integer.
 - **data_types::string_to_boolean(string $string):bool**: Converts string to boolean.
 - **data_types::boolean_to_string(bool $boolean):string**: Converts boolean to string.
-- **data_types::convert_string(string $value):int/float/bool/string**: Converts from string to best fitting data type.
+- **data_types::convert_string(string $value):int|float|bool|string**: Converts from string to best fitting data type.
 - **data_types::convert_to_string(mixed $value):string**: Converts integer/float/boolean to string.
 - **data_types::xmlStringToArray(string $xml):array**: Converts XML into an array.
 - **downloader::downloadFile(string $url, string $file_save_name):bool**: Downloads a file with command line progress bar.
@@ -97,7 +97,7 @@ Available resources included with the core:
 - **files::globRecursive(string $base, string $pattern, $flags):array**: Similar to glob function but processes subfolders aswell.
 - **files::ensureFolder(string $directory):bool**: Creates a folder if it does not exist.
 - **files::mkFolder(string $path):bool**: Creates a folder with 0777 permissions.
-- **files::mkFile(string $path, string $data, string $fopen_mode):bool/int**: Writes data to a file, basically just fopen, fwrite and fclose in one function with ensureFolder.
+- **files::mkFile(string $path, string $data, string $fopen_mode):bool|int**: Writes data to a file, basically just fopen, fwrite and fclose in one function with ensureFolder.
 - **files::getFileDir(string $path):string**: Returns path without file name.
 - **files::getFileName(string $path):string**: Returns file name.
 - **files::copyFile(string $from, string $to):bool**: Copies a file from one place to another.
@@ -110,5 +110,5 @@ Available resources included with the core:
 - **time::millistamp():int**: Returns unix time stamp in milliseconds.
 - **txtrw::mktxt(string $file, string $content, bool $overwrite):bool**: Writes data to a text file.
 - **txtrw::readtxt(string $file):string/false**: Reads data from a text file.
-- **user_input::await(bool $newLine, bool $returnArray):string/array**: Waits for user input, can return as array of words.
+- **user_input::await(bool $newLine, bool $returnArray):string|array**: Waits for user input, can return as array of words.
 - **user_input::yesNo():bool**: Asks the user for y/n (yes/no) input.
