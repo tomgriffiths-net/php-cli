@@ -8,6 +8,7 @@ packages/**
 php/**
 temp/**
 videoencoder/**
+newpackage.php
 p
 settings.json
 UpdateCore.bat
