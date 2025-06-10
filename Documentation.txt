@@ -42,8 +42,6 @@ command line argument conversion examples:
     "words" -> "words" (string)
 
 accepted argument values:
-    first-time-startup
-        Expects boolean, default is false (bool). Used by start.bat to indecate new install.
     verbose-logging
         Expexts boolean, default is false (bool). Used to display more logs, set in fileArguments for most logs as it tiakes time to read command line arguments.
     use-file-as-input
