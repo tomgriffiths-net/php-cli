@@ -17,13 +17,13 @@ If you find any issues with the software please email email@tomgriffiths.net wit
 
 To start the program, double-click on the start.bat file in the folder you installed this program to, then a window called "PHP-CLI: current_directory" will open, when the program has finnished starting there will be a ">" character indecating that it is awaiting user input, now you can type any command you want to run.
 
-Anything that uses services or installs an application or manages core os processes may require administrator permissions and may not specify when they are needed, please use admin permissions when managing services / websites and doing other tasks that require managing the operating system to avoid permission issues.
+Anything that uses services or installs an application or manages other processes may require administrator permissions and may not specify when they are needed, please use admin permissions when managing services / websites and doing other tasks that require managing the operating system to avoid permission issues.
 
 
 # Commands
 
 - **cli new [command line arguments]**: Starts a new PHP-CLI window, command line arguments are optional.
-- **cli reload**: Closes current PHP-CLI window and opens a new one, command line arguments are not copied but permissions are.
+- **cli reload**: Closes current PHP-CLI window and opens a new one with the same permission level, command line arguments are not copied.
 - **extensions ensure-default**: Applies default extensions, is run by default when opening PHP-CLI.
 - **pkgmgr install [package_id]**: Installs a package.
 - **pkgmgr list**: Lists the installed packages.
