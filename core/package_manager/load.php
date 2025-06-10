@@ -114,21 +114,23 @@ class pkgmgr{
         extensions::init();
 
         if(!is_dir('packages')){
-            mkdir('packages',0777,true);
+            if(!mkdir('packages',0777,true)){
+                mklog(3,'Failed to create packages directory');
+            }
         }
         
         $GLOBALS['packageCount'] = 0;
         $GLOBALS['packageInitCount'] = 0;
         foreach(glob('packages/*') as $dir){
             $package = substr($dir,strripos($dir,"/")+1);
-            if(!class_exists($package)){
+            if(!class_exists($package)){//Other packages may have loaded package as a dependency
                 if(self::loadPackage($package) !== true){
-                    mklog('warning','Unable to load package ' . $package,false);
+                    mklog(2,'Unable to load package ' . $package,false);
                 }
             }
         }
         
-        mklog('general','Loaded ' . $GLOBALS['packageCount'] . ' packages, ' . $GLOBALS['packageInitCount'] . ' initialized',false);
+        mklog(1,'Loaded ' . $GLOBALS['packageCount'] . ' packages, ' . $GLOBALS['packageInitCount'] . ' initialized');
     }
     public static function loadPackage(string $package, int|bool $version = false):bool{
         if(self::validatePackageId($package)){
@@ -141,7 +143,7 @@ class pkgmgr{
                 $info = self::getPackageInfo($package,false);
                 if(is_int($version)){
                     if($info['version'] > $version){
-                        mklog('warning','Unable to load package ' . $package . ' version ' . $version . ' because version ' . $info['version'] . ' is installed',false);
+                        mklog(2,'Unable to load package ' . $package . ' version ' . $version . ' because version ' . $info['version'] . ' is installed');
                         return false;
                     }
                 }
@@ -151,31 +153,32 @@ class pkgmgr{
                             $dependencyInfo = self::getPackageInfo($dependencyId,false);
                             if(is_array($dependencyInfo)){
                                 if($dependencyInfo['version'] < $dependencyVersion){
-                                    mklog('warning','Unable to load package ' . $package . ' as one of its dependencies (' . $dependencyId . ') has an incorrect version of ' . $dependencyVersion,false);
+                                    mklog(2,'Unable to load package ' . $package . ' as one of its dependencies (' . $dependencyId . ') has an incorrect version of ' . $dependencyVersion);
                                     return false;
                                 }
                             }
                             else{
-                                mklog('warning','Unable to load package ' . $package . ' as one of its dependencies (' . $dependencyId . ') does not exist',false);
+                                mklog(2,'Unable to load package ' . $package . ' as one of its dependencies (' . $dependencyId . ') does not exist');
                                 return false;
                             }
                         }
                     }
                     foreach($info['dependencies'] as $dependencyId => $dependencyVersion){
                         if(!class_exists($dependencyId)){
-                            if(self::loadPackage($dependencyId) !== true){
+                            if(!self::loadPackage($dependencyId)){
+                                mklog(2,'Unable to load dependency ' . $dependencyId . ' for ' . $package);
                                 return false;
                             }
                         }
                     }
 
-                    mklog('general','Loading package ' . $package);
+                    mklog(0,'Loading package ' . $package);
 
                     if(is_file($info['dir'] . "\\main.php")){
                         include_once $info['dir'] . "\\main.php";
                         $GLOBALS['packageCount']++;
                         if(method_exists($info['id_name'],"init")){
-                            mklog('general','Running init for package ' . $info['name'],false);
+                            mklog(1,'Running init for package ' . $info['name']);
                             $info['id_name']::init();
                             $GLOBALS['packageInitCount']++;
                         }
@@ -184,22 +187,17 @@ class pkgmgr{
                     }
                 }
                 else{
-                    mklog('warning','Package ' . $package . ' does not exist',false);
+                    mklog(2,'Package ' . $package . ' does not exist');
                 }
             }
             else{
-                mklog('general','Package ' . $package . ' is allready loaded',false);
+                mklog(1,'Package ' . $package . ' is allready loaded');
             }
         }
         return false;
     }
     public static function validatePackageId(string $packageId):bool{
-        if(is_string($packageId)){
-            if(preg_match("/^[a-zA-Z0-9_]+$/",$packageId) === 1){
-                return true;
-            }
-        }
-        return false;
+        return (preg_match("/^[a-zA-Z0-9_]+$/",$packageId) === 1);
     }
     public static function validatePackageInfo($info):bool{
         if(isset($info['id_name'])){
@@ -251,6 +249,10 @@ class pkgmgr{
         if(self::validatePackageId($packageId)){
             if($online === true){
                 $result = json::readFile($downloadSite . '/php-cli/api/?function=getPackageInfo&packageId=' . $packageId,false);
+                if(!is_array($result)){
+                    mklog(2,'Failed to download information for package ' . $packageId);
+                    return false;
+                }
                 if(isset($result['success'])){
                     if($result['success'] === true){
                         return $result['data'];
@@ -262,6 +264,10 @@ class pkgmgr{
                 $phpMainFile = 'packages/' . $packageId . '/main.php';
                 if(is_file($infoFile) && is_file($phpMainFile)){
                     $packageInfo = json::readFile($infoFile,false);
+                    if(!is_array($packageInfo)){
+                        mklog(2,'Unable to load information for package ' . $packageId);
+                        return false;
+                    }
                     $packageInfo['dir'] = getcwd() . '\\packages\\' . $packageId;
                     if(self::validatePackageInfo($packageInfo)){
                         return $packageInfo;
@@ -275,6 +281,10 @@ class pkgmgr{
         global $downloadSite;
         if(self::validatePackageId($packageId)){
             $result = json::readFile($downloadSite . '/php-cli/api/?function=getPackageVersionInfo&packageId=' . $packageId . '&version=' . $version,false);
+            if(!is_array($result)){
+                mklog(2,'Unable to download information for package ' . $packageId . ' v' . $version);
+                return false;
+            }
             if(isset($result['success'])){
                 if($result['success'] === true){
                     return $result['data'];
@@ -290,13 +300,13 @@ class pkgmgr{
             $info = self::getPackageInfo($packageId,true);
 
             if(!is_array($info)){
-                mklog('warning','Package ' . $packageId . ' does not exist',false);
+                mklog(2,'Package ' . $packageId . ' does not exist');
                 return false;
             }
 
             foreach(array('id_name','author','versions','name','latest_version') as $thing){
                 if(!isset($info[$thing])){
-                    mklog('warning','Incomplete data for download of ' . $packageId,false);
+                    mklog(2,'Incomplete data for download of ' . $packageId);
                     return false;
                 }
             }
@@ -313,21 +323,26 @@ class pkgmgr{
 
             if(is_file('packages/' . $packageId . '/information.json')){
                 $localInfo = json::readFile('packages/' . $packageId . '/information.json');
+                if(!is_array($localInfo)){
+                    mklog(1,'Local package information for package ' . $packageId . ' is not correct, overwriting');
+                }
                 if(isset($localInfo['version'])){
                     if($localInfo['version'] == $downloadVersion){
-                        mklog('general','Version of package ' . $packageId . ' already matches',false);
+                        mklog(1,'Version of package ' . $packageId . ' already matches');
                         return true;
                     }
                 }
             }
 
             if(is_file('packages/' . $packageId . '/.noupdate')){
-                mklog('general','Package ' . $packageId . ' is marked for not updating (.noupdate file found)',false);
-                return true;
+                mklog(2,'Package ' . $packageId . ' is marked for not updating (.noupdate file found)');
+                return false;
             }
 
             if(is_dir('packages/' . $packageId . '/files')){
-                cmd::run('rmdir ' . files::validatePath('packages/' . $packageId . '/files') . ' /S /Q');
+                if(!cmd::run('rmdir ' . files::validatePath('packages/' . $packageId . '/files') . ' /S /Q')){
+                    mklog(2,'Failed to remove old /files for package ' . $packageId);
+                }
             }
 
             $info2 = self::getPackageVersionInfo($packageId,$downloadVersion);
@@ -336,14 +351,14 @@ class pkgmgr{
 
             foreach(array('version','name') as $thing){
                 if(!isset($info2[$thing])){
-                    mklog('warning','Incomplete data (version specific info) for download of ' . $packageId,false);
+                    mklog(2,'Incomplete data for version download of ' . $packageId);
                     return false;
                 }
             }
 
             $time = time::millistamp();
             $downloadFile = 'temp/pkgmgr/downloads/' . $packageId . '-' . $time . '.zip';
-            mklog('general','Downloading package ' . $packageId . ' version ' . $downloadVersion,false);
+            mklog(1,'Downloading package ' . $packageId . ' version ' . $downloadVersion);
             $downloadTries = 0;
             retrydownload:
             if(downloader::downloadFile($downloadSiteFiles . '/php-cli/packages/' . $packageId . '/' . $downloadVersion . '.zip',$downloadFile)){
@@ -355,7 +370,7 @@ class pkgmgr{
                         goto retrydownload;
                     }
                     else{
-                        mklog('warning','Failed to download a valid zip file',false);
+                        mklog(2,'Failed to download a valid zip file for package ' . $packageId);
                     }
                 }
                 else{
@@ -363,19 +378,19 @@ class pkgmgr{
                 }
 
                 if($getDependencies){
-                    mklog('general','Downloading package dependencies');
+                    mklog(0,'Downloading dependencies for package ' . $packageId);
                     if(isset($info2['dependencies'])){
                         if(is_array($info2['dependencies'])){
                             foreach($info2['dependencies'] as $dependecy => $dependencyVersion){
                                 if(!class_exists($dependecy)){
                                     if(!self::downloadPackage($dependecy)){
-                                        mklog('warning','Failed to download dependency: ' . $dependecy);
+                                        mklog(2,'Failed to download dependency for ' . $packageId . ': ' . $dependecy);
                                     }
                                 }
                             }
                         }
                         else{
-                            mklog('warning','Unknown dependencies format',false);
+                            mklog(2,'Unknown dependencies format for package ' . $packageId);
                         }
                     }
                 }
@@ -390,45 +405,54 @@ class pkgmgr{
                     $zip->extractTo('packages\\' . $packageId);
                     $zip->close();
 
-                    json::writeFile('packages\\' . $packageId . '\\information.json',$info2,true);
+                    if(!json::writeFile('packages\\' . $packageId . '\\information.json',$info2,true)){
+                        mklog(2,'Unable to write information file for package ' . $packageId);
+                    }
 
-                    unlink($downloadFile);
+                    if(!unlink($downloadFile)){
+                        mklog(0,'Unable to delete temporary download file ' . $downloadFile);
+                    }
 
                     if($load){
                         echo "Loading " . $packageId . "\n";
                         return self::loadPackage($packageId,false);
                     }
                     else{
-                        mklog('general','Please restart for the update to apply');
+                        mklog(1,'Please restart PHP-CLI for the update to apply');
                         return true;
                     }
                 }
                 else{
                     if(!isset($zipfailed)){
                         $zipfailed = true;
+                        mklog(0,'Trying again to open package zip file ' . $downloadFile);
                         goto retryzip;
                     }
                     else{
-                        mklog('warning','Failed to open package zip file',false);
+                        mklog(2,'Failed to open package zip file ' . $downloadFile);
                     }
                 }
             }
             else{
-                mklog('warning','Failed to download file',false);
+                mklog(2,'Failed to download zip file for package ' . $packageId);
             }
         }
         return false;
     }
     public static function updatePackages():bool{
         $return = false;
-        foreach(glob('packages/*') as $dir){
+        $glob = glob('packages/*');
+        if(!is_array($glob)){
+            mklog(2,'Unable to read packages folder');
+        }
+        foreach($glob as $dir){
             $packageId = files::getFileName($dir);
             if(self::doesPackageExist($packageId,false)){
                 if(self::downloadPackage($packageId,false,false,false)){
                     $return = true;
                 }
                 else{
-                    mklog('warning','Failed to update package ' . $packageId,false);
+                    mklog(2,'Failed to update package ' . $packageId,false);
                 }
             }
         }
@@ -441,7 +465,7 @@ class pkgmgr{
 
         $preloadedPackages = array("self","cli","cmd","commandline_list","data_types","downloader","extensions","files","json","time","timetest","txtrw","user_input");
         if(in_array($packageId,$preloadedPackages)){
-            return array();
+            return [];
         }
 
         $file = 'packages/' . $packageId . '/main.php';
@@ -449,6 +473,9 @@ class pkgmgr{
             return false;
         }
         $text = file_get_contents($file);
+        if(!is_string($text)){
+            mklog(2,'Unable to read package file ' . $file);
+        }
         $offset = 0;
         $dependencies = array();
         while(true){
@@ -496,7 +523,10 @@ class pkgmgr{
         return $dependencies;
     }
     public static function getLoadedPackages():array{
-        $return = array();
+        $return = [];
+        if(!is_array($GLOBALS['packages'])){
+            mklog(2,'No known packages loaded');
+        }
         foreach($GLOBALS['packages'] as $packageId => $packageInfo){
             $return[$packageId] = $packageInfo['version'];
         }
@@ -504,6 +534,11 @@ class pkgmgr{
     }
     public static function getLatestPhpUrl():string|false{
         $data = json::readFile('https://windows.php.net/downloads/releases/releases.json',false);
+
+        if(!is_array($data)){
+            mklog(2,'Unable to read php releases information');
+            return false;
+        }
         
         //Major version search
         $currentVersion = "0";

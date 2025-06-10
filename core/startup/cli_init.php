@@ -1,13 +1,14 @@
 <?php
-mklog('general','Setting window title');
+mklog(0,'Setting window title');
 exec('title PHP-CLI: ' . getcwd());
 
-mklog('general','Loading stdin and stdout');
+mklog(0,'Loading stdin and stdout');
 $stdout = fopen("php://stdout","w");
-if($stdout === false){
-    mklog('error','Unable to load stdout (E005)',false);
+if(!$stdout){
+    mklog(3,'Unable to load stdout',false);
 }
+
 $stdin = fopen("php://stdin","r");
-if($stdin === false){
-    mklog('error','Unable to load stdin (E006)',false);
+if(!$stdin){
+    mklog(3,'Unable to load stdin',false);
 }

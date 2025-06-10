@@ -1,14 +1,18 @@
 <?php
-mklog('general','Took ' . (floor(microtime(true)*1000) - $startTime) / 1000 . ' seconds to start',false);
+mklog(1,'Took ' . (floor(microtime(true)*1000) - $startTime) / 1000 . ' seconds to start');
 awaitUserInput:
 $fileUsedAsInput = false;
-if($arguments['command'] !== false){
+if(is_string($arguments['command'])){
     $line = $arguments['command'];
 }
 elseif(is_string($arguments['use-file-as-input'])){
     $fileUsedAsInput = true;
     if(is_file($arguments['use-file-as-input'])){
         $line = file_get_contents($arguments['use-file-as-input']);
+        if(!is_string($line) || empty($line)){
+            mklog(2,'Failed to read command from ' . $arguments['use-file-as-input']);
+            $line = false;
+        }
     }
     else{
         $line = false;
@@ -33,7 +37,9 @@ else{
 }
 if($fileUsedAsInput){
     if($line !== false){
-        unlink($arguments['use-file-as-input']);
+        if(!unlink($arguments['use-file-as-input'])){
+            mklog(3,'Failed to delete executed command file ' . $arguments['use-file-as-input']);
+        }
     }
     sleep($arguments['file-as-input-delay']);
 }
@@ -61,7 +67,7 @@ function cli_run(string $line):bool{
                     $baseCommand::command($line);
                 }
                 catch(Throwable $throwable){
-                    mklog("warning","Something went wrong while trying to run: " . $baseCommand . " " . $line . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
+                    mklog(2,"Something went wrong while trying to run: " . $baseCommand . " " . $line . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
                     $return = false;
                 }
             }

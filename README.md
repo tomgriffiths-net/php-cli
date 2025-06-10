@@ -57,7 +57,6 @@ command line argument conversion examples:
     "1.1"   -> 1.1     (float)
     "words" -> "words" (string)
 
-- **first-time-startup**: Expects boolean, default is false (bool). Used by start.bat to indecate new install.
 - **verbose-logging**: Expexts boolean, default is false (bool). Used to display more logs, set in fileArguments for most logs as it tiakes time to read command line arguments.
 - **use-file-as-input**: Expects false (bool) or a file path (string), default is false (bool). When set to a file path, the program will attempt to execute the first line of the text file as a command and delete the file when the command has finnished, then wait a number of seconds before checking if the file exists again.
 - **file-as-input-delay**: Expects integer, default is 10 (int). Specifies the number of seconds the program waits before checking if the use-file-as-input file exists again.
