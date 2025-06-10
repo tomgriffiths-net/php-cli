@@ -1,28 +1,7 @@
 <?php
-class cli{
-    public static function command($line):void{
-        $lines = explode(" ", $line);
-        if($lines[0] === "new"){
-            cmd::newWindow("php\php cli.php " . substr($line,4));
-        }
-        elseif($lines[0] === "reload"){
-            cmd::newWindow("php\php cli.php");
-            exit;
-        }
-    }
-}
 class cmd{
     public static function newWindow(string $command, bool $keepOpen = false){
-        global $globalSettings;
-        $p1 = strpos($command,'<<::');
-        $p2 = strpos($command,'::>>');
-        if($p1 !== false && $p2 !== false){
-            $settingName = substr($command,$p1+4,$p2-$p1-4);
-            if(isset($globalSettings[$settingName])){
-                $command = str_replace('<<::' . $settingName . '::>>',$globalSettings[$settingName],$command);
-            }
-        }
-        mklog('general','Starting process with command ' . $command);
+        mklog(0,'Starting process with command ' . $command);
         $cmdMode = "c";
         if($keepOpen){
             $cmdMode = "k";
@@ -254,11 +233,9 @@ class data_types{
     }
 }
 class downloader{
-    public static function init():void{
-        $GLOBALS['downloader_download_last_percent'] = false;
-        $GLOBALS['downloader_download_last_bytes'] = false;
-        $GLOBALS['downloader_download_last_time'] = false;
-    }
+    private static $lastPercent = false;
+    private static $lastBytes = false;
+    private static $lastTime = false;
     public static function downloadFile(string $url,string $outFile):bool{
         $return = false;
         mklog('general','Downloading file ' . files::getFileName($url),false);
@@ -277,9 +254,9 @@ class downloader{
                 CURLOPT_FAILONERROR => true
             ]);
 
-            $GLOBALS['downloader_download_last_percent'] = 0;
-            $GLOBALS['downloader_download_last_bytes'] = 0;
-            $GLOBALS['downloader_download_last_time'] = floor(microtime(true)*1000);
+            self::$lastPercent = 0;
+            self::$lastBytes = 0;
+            self::$lastTime = floor(microtime(true)*1000);
             @curl_exec($curl);
 
             if(curl_errno($curl) === 0){
@@ -297,9 +274,9 @@ class downloader{
                 $return = false;
             }
 
-            $GLOBALS['downloader_download_last_percent'] = false;
-            $GLOBALS['downloader_download_last_bytes'] = false;
-            $GLOBALS['downloader_download_last_time'] = false;
+            self::$lastPercent = false;
+            self::$lastBytes = false;
+            self::$lastTime = false;
         }
         
         return $return;
@@ -312,12 +289,12 @@ class downloader{
             $percent = 0;
         }
         
-        if($GLOBALS['downloader_download_last_percent'] !== $percent){
-            $GLOBALS['downloader_download_last_percent'] = $percent;
+        if(self::$lastPercent !== $percent){
+            self::$lastPercent = $percent;
 
-            $time = floor(microtime(true)*1000) - $GLOBALS['downloader_download_last_time'];
+            $time = floor(microtime(true)*1000) - self::$lastTime;
             if($time > 0){
-                $speed = ($downloaded - $GLOBALS['downloader_download_last_bytes']) / ($time/1000);
+                $speed = ($downloaded - self::$lastBytes) / ($time/1000);
             }
             else{
                 $speed = 0;

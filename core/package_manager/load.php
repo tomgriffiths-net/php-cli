@@ -1,10 +1,12 @@
 <?php
 pkgmgr::init();
 
-$downloadSite = 'https://www.tomgriffiths.net';
-$downloadSiteFiles = 'https://files.tomgriffiths.net';
-
 class pkgmgr{
+    private static $downloadSite = 'https://www.tomgriffiths.net';
+    private static $downloadSiteFiles = 'https://files.tomgriffiths.net';
+    private static $packageCount = 0;
+    private static $packageInitCount = 0;
+    private static $packages = [];
     public static function command($line):void{
         $lines = explode(" ",$line);
         if($lines[0] === "list"){
@@ -21,7 +23,7 @@ class pkgmgr{
             $columnNames["Version"] = 8;
 
             $rowsData = array();
-            foreach($GLOBALS['packages'] as $packageId => $packageInfo){
+            foreach(self::$packages as $packageId => $packageInfo){
                 $rowData = array();
                 $rowData[] = $packageId;
                 $rowData[] = $packageInfo['name'];
@@ -110,7 +112,6 @@ class pkgmgr{
     }
     public static function init():void{
 
-        downloader::init();
         extensions::init();
 
         if(!is_dir('packages')){
@@ -119,8 +120,6 @@ class pkgmgr{
             }
         }
         
-        $GLOBALS['packageCount'] = 0;
-        $GLOBALS['packageInitCount'] = 0;
         foreach(glob('packages/*') as $dir){
             $package = substr($dir,strripos($dir,"/")+1);
             if(!class_exists($package)){//Other packages may have loaded package as a dependency
@@ -130,7 +129,7 @@ class pkgmgr{
             }
         }
         
-        mklog(1,'Loaded ' . $GLOBALS['packageCount'] . ' packages, ' . $GLOBALS['packageInitCount'] . ' initialized');
+        mklog(1,'Loaded ' . self::$packageCount . ' packages, ' . self::$packageInitCount . ' initialized');
     }
     public static function loadPackage(string $package, int|bool $version = false):bool{
         if(self::validatePackageId($package)){
@@ -176,13 +175,13 @@ class pkgmgr{
 
                     if(is_file($info['dir'] . "\\main.php")){
                         include_once $info['dir'] . "\\main.php";
-                        $GLOBALS['packageCount']++;
+                        self::$packageCount++;
                         if(method_exists($info['id_name'],"init")){
                             mklog(1,'Running init for package ' . $info['name']);
                             $info['id_name']::init();
-                            $GLOBALS['packageInitCount']++;
+                            self::$packageInitCount++;
                         }
-                        $GLOBALS['packages'][$package] = $info;
+                        self::$packages[$package] = $info;
                         return true;
                     }
                 }
@@ -245,10 +244,9 @@ class pkgmgr{
         return false;
     }
     public static function getPackageInfo(string $packageId, bool $online):bool|array{
-        global $downloadSite;
         if(self::validatePackageId($packageId)){
             if($online === true){
-                $result = json::readFile($downloadSite . '/php-cli/api/?function=getPackageInfo&packageId=' . $packageId,false);
+                $result = json::readFile(self::$downloadSite . '/php-cli/api/?function=getPackageInfo&packageId=' . $packageId,false);
                 if(!is_array($result)){
                     mklog(2,'Failed to download information for package ' . $packageId);
                     return false;
@@ -278,9 +276,8 @@ class pkgmgr{
         return false;
     }
     public static function getPackageVersionInfo(string $packageId, int $version):bool|array{
-        global $downloadSite;
         if(self::validatePackageId($packageId)){
-            $result = json::readFile($downloadSite . '/php-cli/api/?function=getPackageVersionInfo&packageId=' . $packageId . '&version=' . $version,false);
+            $result = json::readFile(self::$downloadSite . '/php-cli/api/?function=getPackageVersionInfo&packageId=' . $packageId . '&version=' . $version,false);
             if(!is_array($result)){
                 mklog(2,'Unable to download information for package ' . $packageId . ' v' . $version);
                 return false;
@@ -294,7 +291,6 @@ class pkgmgr{
         return false;
     }
     public static function downloadPackage(string $packageId, int|bool $version = false, bool $getDependencies = true, bool $load = true):bool{
-        global $downloadSiteFiles;
         if(self::validatePackageId($packageId)){
 
             $info = self::getPackageInfo($packageId,true);
@@ -361,7 +357,7 @@ class pkgmgr{
             mklog(1,'Downloading package ' . $packageId . ' version ' . $downloadVersion);
             $downloadTries = 0;
             retrydownload:
-            if(downloader::downloadFile($downloadSiteFiles . '/php-cli/packages/' . $packageId . '/' . $downloadVersion . '.zip',$downloadFile)){
+            if(downloader::downloadFile(self::$downloadSiteFiles . '/php-cli/packages/' . $packageId . '/' . $downloadVersion . '.zip',$downloadFile)){
                 $downloadTries++;
                 $zip = new ZipArchive;
                 $result = $zip->open($downloadFile);
@@ -524,10 +520,7 @@ class pkgmgr{
     }
     public static function getLoadedPackages():array{
         $return = [];
-        if(!is_array($GLOBALS['packages'])){
-            mklog(2,'No known packages loaded');
-        }
-        foreach($GLOBALS['packages'] as $packageId => $packageInfo){
+        foreach(self::$packages as $packageId => $packageInfo){
             $return[$packageId] = $packageInfo['version'];
         }
         return $return;
