@@ -66,11 +66,11 @@ command line argument conversion examples:
 
 # Program Docs
 
-- **mklog(string $type, string $message, bool $verbose=true)**: The function mklog creates a log with a specific type and message. The common types are: general, warning, error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose option is a boolean and if set to true then it will only make the log if verbose logging is enabled.
+- **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
 
-- **verboseLogging()**: The function verboseLogging returns the value of the verbose-logging argument.
+- **verboseLogging()**: Returns the value of the verbose-logging argument.
 
-- **cli_run(string $line)**: The function cli_run is the function called when a command is entered into the cli, any string put into $line will be run as if it were a command.
+- **cli_run(string $line):bool**: Runs a command as if it were typed into the cli, returns true on success or false on failure.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
