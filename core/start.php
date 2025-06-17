@@ -1,20 +1,20 @@
 <?php
 $startTime = floor(microtime(true)*1000);
-mklog('general','Starting',false);
+mklog(1,'Starting');
 
-mklog('general','Loading resources',false);
+mklog(1,'Loading resources');
 require 'resources.php';
-//Loaded: cli,cmd,commandline_list,data_types,downloader,extensions,files,json,time,txtrw,user_input
+//Loaded: cli_formatter,cmd,commandline_list,data_types,downloader,extensions,files,json,time,txtrw,user_input
 
-mklog('general','Reading start arguments');
+mklog(0,'Reading start arguments');
 require 'startup/arguments.php';
 //arguments array set
 
-mklog('general','Loading basic CLI interface',false);
+mklog(1,'Loading basic CLI interface');
 require 'startup/cli_init.php';
 //stdin and stdout file pointers set
 
-mklog('general','Loading packages',false);
+mklog(1,'Loading packages');
 require 'package_manager/load.php';
 
 require 'main.php';

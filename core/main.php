@@ -110,6 +110,12 @@ class cli{
             cmd::newWindow("php\php cli.php");
             exit;
         }
+        elseif($lines[0] === "clear"){
+            cli_formatter::clear();
+        }
+        else{
+            echo "Commands: new [args], reload, clear\n";
+        }
     }
     public static function vardump():string|false{
         $new = [];

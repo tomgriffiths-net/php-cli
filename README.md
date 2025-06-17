@@ -12,18 +12,15 @@ All file referances in this documentation are from the base path that the progra
 
 If you find any issues with the software please email email@tomgriffiths.net with the details of the issue.
 
-
 # Usage
-
 To start the program, double-click on the start.bat file in the folder you installed this program to, then a window called "PHP-CLI: current_directory" will open, when the program has finnished starting there will be a ">" character indecating that it is awaiting user input, now you can type any command you want to run.
 
 Anything that uses services or installs an application or manages other processes may require administrator permissions and may not specify when they are needed, please use admin permissions when managing services / websites and doing other tasks that require managing the operating system to avoid permission issues.
 
-
 # Commands
-
 - **cli new [command line arguments]**: Starts a new PHP-CLI window, command line arguments are optional.
 - **cli reload**: Closes current PHP-CLI window and opens a new one with the same permission level, command line arguments are not copied.
+- **cli clear**: Clears the command window.
 - **extensions ensure-default**: Applies default extensions, is run by default when opening PHP-CLI.
 - **pkgmgr install [package_id]**: Installs a package.
 - **pkgmgr list**: Lists the installed packages.
@@ -34,9 +31,7 @@ Anything that uses services or installs an application or manages other processe
 - **timetest [function string]**: Allows a function string to be given and then shows fuction return in json and the time taken in seconds.
 - **exit**: Closes the current window.
 
-
 # Arguments
-
 The program can accept basic command line arguments, these arguments can be set when executing the cli.php script.
 
 e.g. php\php.exe cli.php <arg1> <arg1 value> <arg2> <arg2 value>
@@ -65,17 +60,18 @@ command line argument conversion examples:
 
 
 # Program Docs
-
 - **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
-
 - **verboseLogging()**: Returns the value of the verbose-logging argument.
-
 - **cli_run(string $line):bool**: Runs a command as if it were typed into the cli, returns true on success or false on failure.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
 Available resources included with the core:
 
+- **cli_formatter::fill(string $colour, int $width=120, int $height=29):void**: Fills the command line with a certain colour.
+- **cli_formatter::ding():void**: Plays the windows warning noise.
+- **cli_formatter::formatLine(string $string, string|bool $colour=false, string|bool $background=false, bool $newline=true, string|bool $attributes=false):string**: Returns a command line formatted string.
+- **cli_formatter::clear():void**: Clears the command window.
 - **cmd::newWindow(string $command, bool $keepOpen):void**: Opens a new command prompt window with a specified command.
 - **cmd::run(string $command, bool $silent, bool $returnOutput):bool|array**: Runs a cmd command and can optionally return the commands output as an array of lines.
 - **commandline_list::table(array $columnNames, array $rowsData):string**: Returns a string that when shown displays a table.

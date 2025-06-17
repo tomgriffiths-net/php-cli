@@ -133,7 +133,7 @@ class pkgmgr{
     }
     public static function loadPackage(string $package, int|bool $version = false):bool{
         if(self::validatePackageId($package)){
-            $preloadedPackages = array("self","cli","cmd","commandline_list","data_types","downloader","extensions","files","json","time","timetest","txtrw","user_input");
+            $preloadedPackages = ["self","cli","cli_formatter","cmd","commandline_list","data_types","downloader","extensions","files","json","pkgmgr","time","timetest","txtrw","user_input"];
             if(in_array($package,$preloadedPackages)){
                 return true;
             }
