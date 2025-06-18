@@ -18,32 +18,7 @@ class cli{
             self::after();
         }
     }
-    private static function getCommands():array{
-        global $arguments;
-
-        if(is_string($arguments['command'])){
-            $line = $arguments['command'];
-        }
-        elseif(is_string($arguments['use-file-as-input'])){
-            if(!is_file($arguments['use-file-as-input'])){
-                return [];
-            }
-
-            $line = file_get_contents($arguments['use-file-as-input']);
-
-            if(!is_string($line) || empty($line)){
-                mklog(2,'Failed to read command from ' . $arguments['use-file-as-input']);
-                return [];
-            }
-        }
-        else{
-            echo ">";
-            $line = user_input::await();
-        }
-
-        return explode(" && ", $line);
-    }
-    private static function run(string $line):bool{
+    public static function run(string $line):bool{
         $return = false;
         if($line === "exit"){
             exit;
@@ -79,28 +54,6 @@ class cli{
         }
         return $return;
     }
-    private static function after(){
-        global $arguments;
-
-        if($arguments['no-loop'] === true){
-            exit;
-        }
-
-        if(is_string($arguments['command'])){
-            $arguments['command'] = false;
-        }
-
-        if(is_string($arguments['use-file-as-input'])){
-            if(is_file($arguments['use-file-as-input'])){
-                if(!unlink($arguments['use-file-as-input'])){
-                    mklog(3,'Failed to delete executed command file ' . $arguments['use-file-as-input']);
-                    $arguments['use-file-as-input'] = false;
-                }
-            }
-            sleep($arguments['file-as-input-delay']);
-        }
-    }
-
     public static function command($line):void{
         $lines = explode(" ", $line);
         if($lines[0] === "new"){
@@ -136,5 +89,52 @@ class cli{
         }
         
         return json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
+    private static function getCommands():array{
+        global $arguments;
+
+        if(is_string($arguments['command'])){
+            $line = $arguments['command'];
+        }
+        elseif(is_string($arguments['use-file-as-input'])){
+            if(!is_file($arguments['use-file-as-input'])){
+                return [];
+            }
+
+            $line = file_get_contents($arguments['use-file-as-input']);
+
+            if(!is_string($line) || empty($line)){
+                mklog(2,'Failed to read command from ' . $arguments['use-file-as-input']);
+                return [];
+            }
+        }
+        else{
+            echo ">";
+            $line = user_input::await();
+        }
+
+        return explode(" && ", $line);
+    }
+    private static function after(){
+        global $arguments;
+
+        if($arguments['no-loop'] === true){
+            exit;
+        }
+
+        if(is_string($arguments['command'])){
+            $arguments['command'] = false;
+        }
+
+        if(is_string($arguments['use-file-as-input'])){
+            if(is_file($arguments['use-file-as-input'])){
+                if(!unlink($arguments['use-file-as-input'])){
+                    mklog(3,'Failed to delete executed command file ' . $arguments['use-file-as-input']);
+                    $arguments['use-file-as-input'] = false;
+                }
+            }
+            sleep($arguments['file-as-input-delay']);
+        }
     }
 }

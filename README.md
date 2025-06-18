@@ -62,7 +62,7 @@ command line argument conversion examples:
 # Program Docs
 - **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
 - **verboseLogging()**: Returns the value of the verbose-logging argument.
-- **cli_run(string $line):bool**: Runs a command as if it were typed into the cli, returns true on success or false on failure.
+- **cli::run(string $line):bool**: Runs a command as if it were typed into the cli, returns true on success or false on failure.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
