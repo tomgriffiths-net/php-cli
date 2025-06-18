@@ -7,9 +7,8 @@
 //$fileArguments['command'] = "<Your command here>";
 
 
-//Check if program is running under cli
+//Ensure cli usage
 if(php_sapi_name() !== "cli"){
-    //Exit if not running under cli
     echo "This script can only be run from the command line.\n";
     exit;
 }
