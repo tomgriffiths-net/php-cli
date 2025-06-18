@@ -38,7 +38,7 @@ e.g. php\php.exe cli.php <arg1> <arg1 value> <arg2> <arg2 value>
 The program can also accept arguments set in cli.php with the fileArguments variables at the top of the file.
 
 
-    $fileArguments['argument_name'] = argument_value
+    $fileArguments['argument_name'] = argument_value;
 
 
 Please note that command line arguments are strings converted into fitting data types whereas fileArguments have to be set correctly as the data types are not converted.
