@@ -1,10 +1,10 @@
 <?php
-$info['dependencies'] = array();
 $info['id_name'] = "";
+$info['name'] = "";
 $info['version'] = 1;
 $info['author'] = "";
-$info['name'] = "";
 $info['description'] = "";
+$info['dependencies'] = [];
 
 $dir = "packages/" . $info['id_name'];
 mkdir($dir,0777,true);
