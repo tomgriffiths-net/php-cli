@@ -4,6 +4,7 @@ PHP-CLI is a command line application that can have packages installed into it.
 To use this program in your own project:
 * Link back to original source (here or www.tomgriffiths.net).
 * Do not claim this code as your own.
+* Installed packages also require valid attribution.
 
 # Notices
 You are able to edit the code but I am not responsible if it breaks after doing so. This software comes as is. There is no warranty.
