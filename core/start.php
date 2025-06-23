@@ -1,5 +1,18 @@
 <?php
 $startTime = floor(microtime(true)*1000);
+
+//Logs setup
+if(!is_dir('logs')){
+    if(!mkdir('logs',0777)){
+        echo "Error: Unable to create logs directory\n";
+    }
+}
+if(is_file('logs\\latest.log')){
+    if(!unlink('logs\\latest.log')){
+        echo "Warning: Unable to delete old latest.log\n";
+    }
+}
+
 mklog(1,'Starting');
 
 mklog(1,'Loading resources');
@@ -38,37 +51,11 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         $message = $trace[1]['class'] . ': ' . $message;
     }
 
-    $makelog = false;
-    $verboseloggingsetting = false;
+    $verboseloggingsetting = verboseLogging();
 
-    if($type){
-        $makelog = true;
-    }
-
-    if(isset($GLOBALS['arguments']['verbose-logging'])){
-        if($GLOBALS['arguments']['verbose-logging']){
-            $makelog = true;
-            $verboseloggingsetting = true;
-        }
-    }
-
-    if(isset($GLOBALS['fileArguments']['verbose-logging'])){
-        if($GLOBALS['fileArguments']['verbose-logging']){
-            $makelog = true;
-            $verboseloggingsetting = true;
-        }
-    }
-
-    if($makelog){
-        if(!is_dir('logs')){
-            if(!mkdir('logs',0777,true)){
-                echo "Error: Unable to create logs directory\n";
-            }
-        }
-
+    if($type || $verboseloggingsetting){
         //Full line
-        $milliseconds = floor(microtime(true)*1000);
-        $dateAndTime = date("Y-m-d_H:i:s:") . substr($milliseconds, -3);
+        $dateAndTime = date("Y-m-d_H:i:s:") . substr(floor(microtime(true)*1000), -3);
         $line = $dateAndTime . ": " . ["Verbose","General","Warning","Error"][$type] . ": " . $message;
 
         //Display log
@@ -94,7 +81,7 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
             echo "Error: Unable to write to latest.log\n";
         }
         if(!fclose($stream)){
-            echo "Error: Unable to safely save latest.log\n";
+            echo "Error: Unable to save latest.log\n";
         }
 
         $stream = fopen('logs\\log-' . date("Y-m") . '.txt','a');
@@ -105,17 +92,25 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
             echo "Error: Unable to write to logs file\n";
         }
         if(!fclose($stream)){
-            echo "Error: Unable to safely save logs file\n";
+            echo "Error: Unable to save logs file\n";
         }
     }
     if($type === 3){
+        cli_formatter::ding();
         sleep(10);
         exit;
     }
 }
 function verboseLogging():bool{
     if(isset($GLOBALS['arguments']['verbose-logging'])){
-        return $GLOBALS['arguments']['verbose-logging'];
+        if($GLOBALS['arguments']['verbose-logging']){
+            return true;
+        }
+    }
+    if(isset($GLOBALS['fileArguments']['verbose-logging'])){
+        if($GLOBALS['fileArguments']['verbose-logging']){
+            return true;
+        }
     }
     return false;
 }

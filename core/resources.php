@@ -547,6 +547,9 @@ class files{
         }
     }
     public static function mkFolder(string $path):bool{
+        if(empty($path)){
+            return false;
+        }
         return mkdir($path,0777,true);
     }
     public static function mkFile(string $path, $data, $fopenMode = "w"):bool|int{
