@@ -1,10 +1,22 @@
 <?php
-mklog(1,'Took ' . (floor(microtime(true)*1000) - $startTime) / 1000 . ' seconds to start');
+mklog(1,'Took ' . round(microtime(true) - cli::info()['startTime'], 3) . ' seconds to start');
 
 cli::start();
 
 class cli{
     private static $started = false;
+    public static function info():array{
+        return [
+            'version' => 94,
+            'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
+            'pcName' => $_SERVER['COMPUTERNAME'],
+            'pcDrive' => $_SERVER['SystemDrive'],
+            'cpuThreads' => $_SERVER['NUMBER_OF_PROCESSORS'],
+            'cpuType' => $_SERVER['PROCESSOR_ARCHITECTURE'],
+            'phpVersionNumeric' => PHP_VERSION_ID,
+            'phpVersion' => phpversion()
+        ];
+    }
     public static function start(){
         if(self::$started){
             return;
@@ -69,26 +81,6 @@ class cli{
         else{
             echo "Commands: new [args], reload, clear\n";
         }
-    }
-    public static function vardump():string|false{
-        $new = [];
-        
-        foreach($GLOBALS as $name => $value){
-            if($name !== "GLOBALS"){
-                // Convert complex types to string representations
-                if(is_array($value)){
-                    $new[$name] = $value; // Arrays usually encode fine
-                } elseif(is_object($value)){
-                    $new[$name] = '[Object: ' . get_class($value) . ']';
-                } elseif(is_resource($value)){
-                    $new[$name] = '[Resource: ' . get_resource_type($value) . ']';
-                } else {
-                    $new[$name] = $value;
-                }
-            }
-        }
-        
-        return json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
     private static function getCommands():array{

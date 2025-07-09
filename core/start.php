@@ -1,5 +1,16 @@
 <?php
-$startTime = floor(microtime(true)*1000);
+//Required checks
+if($_SERVER['OS'] !== "Windows_NT"){
+    echo "ERROR: This program can only run on modern Windows\n";
+    exit;
+}
+if(PHP_VERSION_ID < 80000){
+    echo "ERROR: PHP Version 8 or newer is required to run PHP-CLI\n";
+    exit;
+}
+if(PHP_VERSION_ID < 80301){
+    echo "Warning: PHP Version 8.3.1 or newer is recommended\n";
+}
 
 //Logs setup
 if(!is_dir('logs')){
@@ -29,7 +40,9 @@ require 'startup/cli_init.php';
 
 mklog(1,'Loading packages');
 require 'package_manager/load.php';
+//packages loaded
 
+//start cli input
 require 'main.php';
 
 function mklog(int|string $type, string $message, bool $verbose=true):void{
