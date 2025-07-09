@@ -62,15 +62,14 @@ command line argument conversion examples:
 
 # Program Docs
 - **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. The error type exits the program. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
-- **verboseLogging()**: Returns the value of the verbose-logging argument.
-- **cli::run(string $line):bool**: Runs a command as if it were typed into the cli, returns true on success or false on failure.
+- **verboseLogging():bool**: Returns the value of the verbose-logging argument.
+- **cli::run(string $line):bool**: Runs a command as if it were typed into the cli, returns true if the command exists or false on failure.
+- **cli::info():array**: Returns useful information about the cli.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
 Available resources included with the core:
 
-- **cli::info():array**: Returns useful information about the cli.
-- **cli::run():bool**: Runs a command.
 - **cli_formatter::fill(string $colour, int $width=120, int $height=29):void**: Fills the command line with a certain colour.
 - **cli_formatter::ding():void**: Plays the windows warning noise.
 - **cli_formatter::formatLine(string $string, string|bool $colour=false, string|bool $background=false, bool $newline=true, string|bool $attributes=false):string**: Returns a command line formatted string.
