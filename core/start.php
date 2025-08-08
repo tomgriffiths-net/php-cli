@@ -57,7 +57,7 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
 
     //
 
-    $type = max(min(3,$type),0);
+    $type = min(max($type,0),3);
 
     $trace = debug_backtrace();
     if(isset($trace[1]['class'])){
