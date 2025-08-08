@@ -7,7 +7,7 @@ class cli{
     private static $started = false;
     public static function info():array{
         return [
-            'version' => 94,
+            'version' => 95,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => $_SERVER['COMPUTERNAME'],
             'pcDrive' => $_SERVER['SystemDrive'],
