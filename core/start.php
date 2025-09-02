@@ -90,10 +90,10 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         if(!$stream){
             echo "Error: Unable to open latest.log\n";
         }
-        if(!fwrite($stream,$line . "\n")){
+        elseif(!fwrite($stream,$line . "\n")){
             echo "Error: Unable to write to latest.log\n";
         }
-        if(!fclose($stream)){
+        elseif(!fclose($stream)){
             echo "Error: Unable to save latest.log\n";
         }
 
@@ -101,17 +101,16 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         if(!$stream){
             echo "Error: Unable to open logs file\n";
         }
-        if(!fwrite($stream,$line . "\n")){
+        elseif(!fwrite($stream,$line . "\n")){
             echo "Error: Unable to write to logs file\n";
         }
-        if(!fclose($stream)){
+        elseif(!fclose($stream)){
             echo "Error: Unable to save logs file\n";
         }
     }
     if($type === 3){
         cli_formatter::ding();
-        sleep(10);
-        exit;
+        sleep(2);
     }
 }
 function verboseLogging():bool{
