@@ -65,6 +65,7 @@ command line argument conversion examples:
 - **verboseLogging():bool**: Returns the value of the verbose-logging argument.
 - **cli::run(string $line):bool**: Runs a command as if it were typed into the cli, returns true if the command exists or false on failure.
 - **cli::info():array**: Returns useful information about the cli.
+- **cli::registerAlias(string $alias, string $command):bool**: Registers an alias for a command, returns true on success or false on failure.
 
 Note: Most cool stuff is only available in packages that will need to be downloaded using the pkgmgr command.
 
