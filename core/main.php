@@ -5,6 +5,8 @@ cli::start();
 
 class cli{
     private static $started = false;
+    private static $aliases = [];
+
     public static function info():array{
         return [
             'version' => 96,
@@ -35,35 +37,41 @@ class cli{
         if($line === "exit"){
             exit;
         }
-        elseif($line !== false){
-            if(strpos($line," ") !== false){
-                $spacePos = strpos($line," ");
-                $baseCommand = substr($line,0,$spacePos);
-                $line = substr($line,$spacePos+1);
+
+        if(strpos($line," ") !== false){
+            $spacePos = strpos($line," ");
+            $baseCommand = substr($line,0,$spacePos);
+            $line = substr($line,$spacePos+1);
+        }
+        else{
+            $baseCommand = $line;
+            $line = "";
+        }
+        $baseCommand = strtolower($baseCommand);
+
+        if(isset(self::$aliases[$baseCommand])){
+            return self::run(self::$aliases[$baseCommand] . " " . $line);
+        }
+
+        if(class_exists($baseCommand)){
+            if(method_exists($baseCommand,'command')){
+                $return = true;
+                try{
+                    $baseCommand::command($line);
+                }
+                catch(Throwable $throwable){
+                    mklog(3,"Something went wrong while trying to run: " . $baseCommand . " " . $line . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
+                    $return = false;
+                }
             }
             else{
-                $baseCommand = $line;
-                $line = "";
-            }
-            if(class_exists($baseCommand)){
-                if(method_exists($baseCommand,'command')){
-                    $return = true;
-                    try{
-                        $baseCommand::command($line);
-                    }
-                    catch(Throwable $throwable){
-                        mklog(2,"Something went wrong while trying to run: " . $baseCommand . " " . $line . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
-                        $return = false;
-                    }
-                }
-                else{
-                    echo "The package " . $baseCommand . " does not have a command function\n";
-                }
-            }
-            else{
-                echo "Unknown Command: " . $baseCommand . "\n";
+                mklog(2,"The package " . $baseCommand . " does not have a command function\n");
             }
         }
+        else{
+            mklog(2,"Unknown Command: " . $baseCommand . "\n");
+        }
+        
         return $return;
     }
     public static function command($line):void{
@@ -81,6 +89,13 @@ class cli{
         else{
             echo "Commands: new [args], reload, clear\n";
         }
+    }
+    public static function registerAlias(string $alias, string $command):bool{
+        if(class_exists($alias) || isset(self::$aliases[$alias]) || $alias === "exit"){
+            return false;
+        }
+        self::$aliases[$alias] = $command;
+        return true;
     }
 
     private static function getCommands():array{
