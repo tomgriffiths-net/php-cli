@@ -473,7 +473,7 @@ class extensions{
                         return false;
                     }
                 }
-                if(file_put_contents($phpIni,$file) !== false){
+                if(file_put_contents($phpIni,$file)){
                     return true;
                 }
             }
