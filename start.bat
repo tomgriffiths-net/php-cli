@@ -12,8 +12,8 @@ if exist cli.php (
 
     ) else (
 
-        echo Downloading PHP
-        powershell -command "$ProgressPreference = 'SilentlyContinue'; $link = (Invoke-WebRequest -Uri https://files.tomgriffiths.net/php-cli/php_latest.txt).Content; Invoke-WebRequest -OutFile php.zip -Uri $link"
+        echo Downloading custom ini PHP
+        powershell -command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -OutFile php.zip -Uri 'https://files.tomgriffiths.net/php-cli/files/php-8.4.12-Win32-vs17-x64-CustomIniV1.zip'"
         
         if not exist php.zip (
             echo Failed to download PHP
