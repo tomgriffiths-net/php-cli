@@ -385,37 +385,8 @@ class downloader{
                 $speed = 0;
             }
 
-            $barWidth = 20;
-            $barFilled = intval(floor(($percent/100)*$barWidth));
-
-            $string = "[" . str_repeat("#",$barFilled) . str_repeat(" ",$barWidth - $barFilled) . "] ";
-            $string .= self::formatBytes($download_size) . " ";
-            $string .= str_pad($percent,3," ",STR_PAD_LEFT) . "% ";
-            $string .= self::formatBytes($speed) . "/s\r";
-            echo $string;
+            echo files::progressBar($percent, 30, $download_size, $speed);
         }
-    }
-    public static function formatBytes($bytes):string{
-        $digits = strlen(round($bytes));
-        $unit = "B ";
-
-        if($digits > 12){
-            $bytes = $bytes / (1024**4);
-            $unit = "TB";
-        }
-        elseif($digits > 9){
-            $bytes = $bytes / (1024**3);
-            $unit = "GB";
-        }
-        elseif($digits > 6){
-            $bytes = $bytes / (1024**2);
-            $unit = "MB";
-        }
-        elseif($digits > 3){
-            $bytes = $bytes / 1024;
-            $unit = "KB";
-        }
-        return str_pad(round($bytes),3," ",STR_PAD_LEFT) . $unit;
     }
 }
 class extensions{
@@ -574,20 +545,93 @@ class files{
         $file = substr($path,$pos+1);
         return $file;
     }
-    public static function copyFile(string $pathFrom, string $pathTo):bool{
-        $success = false;
-        $dir = self::getFileDir($pathTo);
+    public static function copyFile(string $pathFrom, string $pathTo, bool $showProgress=false):bool{
         if(!is_file($pathFrom)){
-            goto end;
-        }
-        if(!is_dir($dir)){
-            self::mkFolder($dir);
+            mklog(2, 'Cannot copy from nonexistant source ' . $pathFrom);
+            return false;
         }
 
-        $success = copy($pathFrom,$pathTo);
+        if(is_file($pathTo)){
+            mklog(2, 'The destination file already exists ' . $pathTo);
+            return false;
+        }
 
-        end:
-        return $success;
+        $dir = self::getFileDir($pathTo);
+        if(!empty($dir) && !is_dir($dir)){
+            if(!self::mkFolder($dir)){
+                mklog(2, 'Failed to create folder for destination file ' . $dir);
+                return false;
+            }
+        }
+
+        mklog(1, 'Copying file ' . $pathFrom . ' to ' . $pathTo);
+
+        if($showProgress){
+            $totalBytes = filesize($pathFrom);
+            if(!$totalBytes){
+                mklog(2, 'Failed to get size of file');
+                return false;
+            }
+
+            $in = fopen($pathFrom, 'rb');
+            if(!$in){
+                mklog(2, 'Failed to open source stream');
+                return false;
+            }
+
+            $out = fopen($pathTo, 'wb');
+            if(!$out){
+                mklog(2, 'Failed to open source stream');
+                @fclose($in);
+                return false;
+            }
+
+            $bytesCopied = 0;
+            $bytesCopiedTotal = 0;
+            $startTime = microtime(true);
+            while(!feof($in)){
+                $chunk = fread($in, 1024*1024);
+                if($chunk === false){
+                    mklog(2, 'Failed to read from source file');
+                    @fclose($in); @fclose($out); @unlink($pathTo);
+                    return false;
+                }
+                if(!fwrite($out, $chunk)){
+                    mklog(2, 'Failed to write to destination file');
+                    @fclose($in); @fclose($out); @unlink($pathTo);
+                    return false;
+                }
+
+                $timeDiff = microtime(true) - $startTime;
+                $chunkSize = strlen($chunk);
+                $bytesCopied += $chunkSize;
+                $bytesCopiedTotal += $chunkSize;
+                $bytesPerSecond = round($bytesCopied / $timeDiff);
+                $precentage = round(($bytesCopiedTotal / $totalBytes) * 100);
+
+                if($timeDiff > 10){
+                    $bytesCopied = 0;
+                    $startTime = microtime(true);
+                }
+
+                $eta = round(($totalBytes - $bytesCopiedTotal) / $bytesPerSecond);
+
+                echo files::progressBar($precentage, 30, $totalBytes, $bytesPerSecond, $eta);
+            }
+
+            if($bytesCopiedTotal !== $totalBytes){
+                mklog(2, 'Failed to copy all bytes');
+                return false;
+            }
+
+            fclose($in);
+            fclose($out);
+        }
+        else{
+            return copy($pathFrom, $pathTo);
+        }
+        
+        return true;
     }
     public static function validatePath(string $path, bool $addquotes = false):string{
         $path = str_replace("/","\\",$path);
@@ -687,6 +731,56 @@ class files{
             "xul"   => "application/vnd.mozilla.xul+xml",
             "zip"   => "application/zip",
         );
+    }
+    public static function formatBytes($bytes):string{
+        $digits = strlen(round($bytes));
+        $unit = "B ";
+
+        if($digits > 12){
+            $bytes = $bytes / (1024**4);
+            $unit = "TB";
+        }
+        elseif($digits > 9){
+            $bytes = $bytes / (1024**3);
+            $unit = "GB";
+        }
+        elseif($digits > 6){
+            $bytes = $bytes / (1024**2);
+            $unit = "MB";
+        }
+        elseif($digits > 3){
+            $bytes = $bytes / 1024;
+            $unit = "KB";
+        }
+
+        if(intval($bytes) < 10){
+            return round($bytes, 1) . $unit;
+        }
+        else{
+            return round($bytes) . $unit;
+        }
+    }
+    public static function progressBar(float $precentage, int $barWidth=30, int $totalBytes=0, int $bytesPerSecond=0, int $secondsLeft=0):string{
+        if($precentage > 100 || $precentage < 0 || $barWidth < 1 || $barWidth > 90){
+            return "";
+        }
+
+        $barFilled = intval(floor(($precentage/100)*$barWidth));
+
+        $string = "[" . str_repeat("#",$barFilled) . str_repeat(" ",$barWidth - $barFilled) . "] ";
+        $string .= $precentage . "% ";
+
+        if($totalBytes){
+            $string .= files::formatBytes($totalBytes) . " ";
+        }
+        if($bytesPerSecond){
+            $string .= files::formatBytes($bytesPerSecond) . "/s ";
+        }
+        if($secondsLeft){
+            $string .= gmdate("H:i:s", $secondsLeft) . " ";
+        }
+
+        return $string . "  \r";
     }
 }
 class json{
