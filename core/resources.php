@@ -318,74 +318,59 @@ class data_types{
     }
 }
 class downloader{
-    private static $lastPercent = false;
-    private static $lastBytes = false;
-    private static $lastTime = false;
-    public static function downloadFile(string $url,string $outFile):bool{
+    public static function downloadFile(string $url, string $outFile):bool{
+        mklog(1, 'Downloading file ' . files::getFileName($url));
+
+        if(is_file($outFile)){
+            mklog(2, 'The download destination already exists');
+            return false;
+        }
+
+        $destDir = files::getFileDir($outFile);
+        if(!empty($destDir)){
+            if(!files::ensureFolder($destDir)){
+                return false;
+            }
+        }
+
         $return = false;
-        mklog('general','Downloading file ' . files::getFileName($url),false);
-        if(files::ensureFolder(files::getFileDir($outFile))){
-            $curl = curl_init();
-            $file = fopen($outFile, 'wb');
+        
+        $curl = curl_init();
+        $file = fopen($outFile, 'wb');
 
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $url,
-                CURLOPT_HEADER => false,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_FILE => $file,
-                CURLOPT_PROGRESSFUNCTION => ['downloader', 'curlProgress'],
-                CURLOPT_NOPROGRESS => false,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_FAILONERROR => true
-            ]);
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $url,
+            CURLOPT_HEADER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FILE => $file,
+            CURLOPT_PROGRESSFUNCTION => ['downloader', 'curlProgress'],
+            CURLOPT_NOPROGRESS => false,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FAILONERROR => true
+        ]);
 
-            self::$lastPercent = 0;
-            self::$lastBytes = 0;
-            self::$lastTime = floor(microtime(true)*1000);
-            @curl_exec($curl);
+        @curl_exec($curl);
 
-            if(curl_errno($curl) === 0){
-                $return = true;
-                echo "\n";
-            }
-            else{
-                mklog('warning','Download error: ' . curl_error($curl),false);
-            }
+        if(curl_errno($curl) === 0){
+            $return = true;
+            echo "\n";
+        }
+        else{
+            mklog(2, 'Download error: ' . curl_error($curl));
+        }
 
-            curl_close($curl);
-            fclose($file);
+        curl_close($curl);
+        fclose($file);
 
-            if(!is_file($outFile)){
-                $return = false;
-            }
-
-            self::$lastPercent = false;
-            self::$lastBytes = false;
-            self::$lastTime = false;
+        if(!is_file($outFile)){
+            $return = false;
         }
         
         return $return;
     }
     private static function curlProgress($resource, $download_size = 0, $downloaded = 0, $upload_size = 0, $uploaded = 0):void{
         if($download_size > 0 && $downloaded > 0) {
-            $percent = ceil($downloaded * 100 / $download_size);
-        }
-        else{
-            $percent = 0;
-        }
-        
-        if(self::$lastPercent !== $percent){
-            self::$lastPercent = $percent;
-
-            $time = floor(microtime(true)*1000) - self::$lastTime;
-            if($time > 0){
-                $speed = ($downloaded - self::$lastBytes) / ($time/1000);
-            }
-            else{
-                $speed = 0;
-            }
-
-            echo files::progressBar($percent, 30, $download_size, $speed);
+            echo files::progressTracker($download_size, $downloaded);
         }
     }
 }
@@ -482,6 +467,11 @@ class extensions{
     }
 }
 class files{
+    private static $progressStartTime = 0;
+    private static $progressLastTotal = 0;
+    private static $progressLocalStartTime = 0;
+    private static $progressLocalCurrent = 0;
+    private static $progressLastCurrent = 0;
     public static function globRecursive(string $base, string $pattern, $flags = 0):array{
         $flags = $flags & ~GLOB_NOCHECK;
         
@@ -587,8 +577,6 @@ class files{
             }
 
             $bytesCopied = 0;
-            $bytesCopiedTotal = 0;
-            $startTime = microtime(true);
             while(!feof($in)){
                 $chunk = fread($in, 1024*1024);
                 if($chunk === false){
@@ -602,36 +590,24 @@ class files{
                     return false;
                 }
 
-                $timeDiff = microtime(true) - $startTime;
-                $chunkSize = strlen($chunk);
-                $bytesCopied += $chunkSize;
-                $bytesCopiedTotal += $chunkSize;
-                $bytesPerSecond = round($bytesCopied / $timeDiff);
-                $precentage = round(($bytesCopiedTotal / $totalBytes) * 100);
-
-                if($timeDiff > 10){
-                    $bytesCopied = 0;
-                    $startTime = microtime(true);
-                }
-
-                $eta = round(($totalBytes - $bytesCopiedTotal) / $bytesPerSecond);
-
-                echo files::progressBar($precentage, 30, $totalBytes, $bytesPerSecond, $eta);
+                $bytesCopied += strlen($chunk);
+                
+                echo self::progressTracker($totalBytes, $bytesCopied);
             }
 
-            if($bytesCopiedTotal !== $totalBytes){
+            if($bytesCopied !== $totalBytes){
                 mklog(2, 'Failed to copy all bytes');
                 return false;
             }
 
             fclose($in);
             fclose($out);
+
+            return true;
         }
         else{
             return copy($pathFrom, $pathTo);
         }
-        
-        return true;
     }
     public static function validatePath(string $path, bool $addquotes = false):string{
         $path = str_replace("/","\\",$path);
@@ -732,7 +708,7 @@ class files{
             "zip"   => "application/zip",
         );
     }
-    public static function formatBytes($bytes):string{
+    public static function formatBytes(int $bytes):string{
         $digits = strlen(round($bytes));
         $unit = "B ";
 
@@ -781,6 +757,48 @@ class files{
         }
 
         return $string . "  \r";
+    }
+    public static function progressTracker(int $total, int $current, int $barWidth=30, bool $showTotal=true, bool $showSpeed=true, bool $showEta=true):string{
+        if($total < 1 || $current < 0 || $current > $total || $barWidth > 90){
+            return "";
+        }
+        
+        if(self::$progressLastTotal !== $total){
+            //Reset if total changes
+            self::$progressStartTime = microtime(true);
+            self::$progressLastTotal = $total;
+            self::$progressLocalStartTime = self::$progressStartTime;
+            self::$progressLocalCurrent = $current;
+            self::$progressLastCurrent = 0;
+        }
+
+        $precentage = round(($current / $total) * 100);
+
+        if($showSpeed){
+            $currentDifference = $current - self::$progressLastCurrent;
+            self::$progressLocalCurrent += $currentDifference;
+            $timeDiff = microtime(true) - self::$progressLocalStartTime;
+            $bytesPerSecond = round(self::$progressLocalCurrent / $timeDiff);
+
+            if($timeDiff > 10){
+                self::$progressLocalCurrent = 0;
+                self::$progressLocalStartTime = microtime(true);
+            }
+        }
+        else{
+            $bytesPerSecond = 0;
+        }
+
+        if($showEta && $bytesPerSecond){
+            $eta = round(($total - $current) / $bytesPerSecond);
+        }
+        else{
+            $eta = 0;
+        }
+
+        self::$progressLastCurrent = $current;
+
+        return files::progressBar($precentage, $barWidth, ($showTotal ? $total : 0), $bytesPerSecond, $eta);
     }
 }
 class json{

@@ -87,7 +87,6 @@ Available resources included with the core:
 - **data_types::convert_to_string(mixed $value):string**: Converts integer/float/boolean to string.
 - **data_types::xmlStringToArray(string $xml):array**: Converts XML into an array.
 - **downloader::downloadFile(string $url, string $file_save_name):bool**: Downloads a file with command line progress bar.
-- **downloader::formatBytes(string/int $bytes):string**: Formats bytes into KB/MB/GB/TB.
 - **extensions::load(string $extension_name):bool**: Sets an extension to be loaded when PHP-CLI is started.
 - **extensions::is_loaded(string $extension_name):bool**: Returns true if extension name given is loaded, false otherwise.
 - **extensions::ensure(string $extension_name):bool**: Makes sure an extension is loaded.
@@ -100,6 +99,9 @@ Available resources included with the core:
 - **files::copyFile(string $from, string $to):bool**: Copies a file from one place to another.
 - **files::validatePath(string $path, bool $add_quotes):string**: Makes sure a path is valid, useful for passing path to command line.
 - **files::getFileExtension(string $path):string**: Returns file extension from a given path.
+- **files::formatBytes(string/int $bytes):string**: Formats bytes into KB/MB/GB/TB.
+- **files::progressBar(float $precentage, int $barWidth=30, int $totalBytes=0, int $bytesPerSecond=0, int $secondsLeft=0):string**: Returns a formatted string with a progress bar and stats.
+- **files::progressTracker(int $total, int $current, int $barWidth=30, bool $showTotal=true, bool $showSpeed=true, bool $showEta=true):string**: Returns a formatted string with a progress bar and stats, continuously call to update, calculates stats on its own.
 - **json::addToFile(string $path, mixed $key, mixed $value, bool $addToTop):void**: Adds data to json file, only works when json file is an array.
 - **json::readFile(string $path, bool $create, mixed $expected):mixed**: Reads data from json file.
 - **json::writeFile(string $path, mixed $data, bool $overwrite):bool**: Writes data to json file.
