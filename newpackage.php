@@ -2,7 +2,7 @@
 $info['id_name'] = "";
 $info['name'] = "";
 $info['version'] = 1;
-$info['author'] = "";
+$info['author'] = "tom";
 $info['description'] = "";
 $info['dependencies'] = [];
 
