@@ -284,7 +284,7 @@ class data_types{
         return json_decode(json_encode($xml1),true);
     }
     public static function array_to_eval_string(array $data):string{
-        $string = 'array(';
+        $string = '[';
         foreach($data as $key => $value){
             if(is_int($key)){
                 $keytext = $key;
@@ -296,7 +296,7 @@ class data_types{
             $valuetext = self::convert_to_eval_string($value);
             $string .= $keytext . '=>' . $valuetext . ',';
         }
-        $string .= ')';
+        $string = substr($string, 0, -1) . ']';
         return $string;
     }
     public static function convert_to_eval_string(array|string|float|int|bool $value):string{
@@ -315,6 +315,31 @@ class data_types{
         }
 
         return $return;
+    }
+    public static function validateData(array $data, array $expected):bool{
+        foreach($expected as $expectedName => $expectedType){
+            if(!isset($data[$expectedName])){
+                return false;
+            }
+
+            if(is_array($expectedType)){
+                if(!is_array($data[$expectedName])){
+                    return false;
+                }
+
+                if(!self::validateData($data[$expectedName], $expectedType)){
+                    return false;
+                }
+
+                continue;
+            }
+            
+            if(gettype($data[$expectedName]) !== $expectedType){
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 class downloader{
@@ -376,94 +401,14 @@ class downloader{
 }
 class extensions{
     public static function load(string $extensionName):bool{
-        $phpIni = "php\\php.ini";
-        $result = self::enableExtensions($phpIni,array($extensionName));
-        if($result){
-            mklog('general',"Extension '" . $extensionName . "' added to configuration, please restart PHP-CLI",false);
-            return true;
-        }
-        else{
-            mklog('warning',"Unable to add extension '" . $extensionName . "' to configuration",false);
-            return false;
-        }
+        extension_enable($extensionName);
+        return false;
     }
     public static function is_loaded(string $extensionName):bool{
         return extension_loaded($extensionName);
     }
     public static function ensure(string $extensionName):bool{
-        if(self::is_loaded($extensionName)){
-            return true;
-        }
-        else{
-            return self::load($extensionName);
-        }
-    }
-    private static function enableExtensions(string $phpIni, array $extensions):bool{
-        $enabledExtensions = array();
-        if(is_file($phpIni)){
-            $file = file($phpIni);
-            if(is_array($file)){
-                foreach($file as $index => $line){
-                    $line1 = substr(trim($line),0,strpos($line . " "," "));
-                    $substr = substr($line1,0,10);
-                    if($substr === ";extension" || $substr === "extension="){
-                        foreach($extensions as $extension){
-                            $line2 = "extension=" . $extension;
-                            if($line1 === $line2){
-                                $enabledExtensions[] = $extension;
-                            }
-                            elseif($line1 === ";" . $line2){
-                                $file[$index] = str_replace(";","",$line);
-                                $enabledExtensions[] = $extension;
-                            }
-                        }
-                    }
-                }
-                foreach($extensions as $extension){
-                    if(in_array($extension,$enabledExtensions)){
-                        mklog('general',"Enabling extension  '" . $extension . "'",false);
-                        files::copyFile("php\\ext\\php_" . $extension . ".dll","C:\\php\\ext\\php_" . $extension . ".dll");
-                    }
-                    else{
-                        mklog('warning',"Unable to find extension entry '" . $extension . "' in " . $phpIni,false);
-                        return false;
-                    }
-                }
-                if(file_put_contents($phpIni,$file)){
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    public static function command($line):void{
-        $lines = explode(" ",$line);
-        if($lines[0] === "ensure-default"){
-            self::defaultExtensions();
-        }
-        else{
-            echo "extensions: Command not found\n";
-        }
-    }
-    public static function init():void{
-        $phpIni = "php\\php.ini";
-        if(!is_file($phpIni)){
-            if(!self::defaultExtensions()){
-                mklog('warning','Failed to load default extensions',false);
-            }
-        }
-    }
-    private static function defaultExtensions():bool{
-        $phpIni = "php\\php.ini";
-        if(!is_file($phpIni)){
-            files::copyFile($phpIni . "-development",$phpIni);
-        }
-        if(self::enableExtensions($phpIni,array('curl','mysqli','openssl','sockets','zip'))){
-            mklog('general','Restarting PHP-CLI',false);
-            cmd::newWindow("php\\php.exe cli.php");
-            exit;
-        }
-        return false;
+        return extension_ensure($extensionName);
     }
 }
 class files{
@@ -511,16 +456,64 @@ class files{
         if(empty($path)){
             return false;
         }
+
+        if(is_dir($path)){
+            mklog(2, 'Failed to create directory ' . $path . ' as it already exists');
+            return false;
+        }
+        if(is_file($path)){
+            mklog(2, 'Failed to create directory ' . $path . ' as a file exists with the same name');
+        }
+
         return mkdir($path,0777,true);
     }
-    public static function mkFile(string $path, $data, $fopenMode = "w"):bool|int{
-        $dir = self::getFileDir($path);
-        if(!is_dir($dir)){
-            self::mkFolder($dir);
+    public static function mkFile(string $path, string $data, string $fopenMode = "w", bool $overwrite=true):bool{
+        if(empty($path)){
+            mklog(2, 'Cannot create a file with empty path');
+            return false;
         }
-        $stream = fopen($path,$fopenMode);
-        $return = fwrite($stream,$data);
-        fclose($stream);
+
+        if(!in_array($fopenMode, ['w', 'wb', 'a', 'ab', 'x', 'xb', 'c', 'cb'])){
+            mklog(2, 'Invalid fopen mode: ' . $fopenMode);
+            return false;
+        }
+
+        if(!$overwrite && is_file($path)){
+            mklog(2, 'Cannot create file ' . $path . ' as it already exists and overwrite is set to false');
+            return false;
+        }
+
+        $dir = self::getFileDir($path);
+        if(!empty($dir) && !is_dir($dir)){
+            if(!self::mkFolder($dir)){
+                mklog(2, 'Failed to create ' . $dir . ' directory when creating file');
+                return false;
+            }
+        }
+
+        $stream = fopen($path, $fopenMode);
+        if(!$stream){
+            mklog(2, 'Failed to open file ' . $path . ' with mode ' . $fopenMode);
+            return false;
+        }
+
+        $return = true;
+        $length = strlen($data);
+        $bytes = fwrite($stream, $data);
+        if($bytes === false){
+            mklog(2, 'Failed to write data to file ' . $path);
+            $return = false;
+        }
+        elseif($bytes !== $length){
+            mklog(2, 'Failed to write correct amount of data to file ' . $path . ' (' . $bytes . ' out of ' . $length . ' bytes)');
+            $return = false;
+        }
+
+        if(!fclose($stream)){
+            mklog(2, 'Failed to close/save file ' . $path);
+            $return = false;
+        }
+        
         return $return;
     }
     public static function getFileDir(string $path):string{
@@ -802,7 +795,7 @@ class files{
     }
 }
 class json{
-    public static function addToFile($path,$entryKey,$entryValue,$addToTop=true):bool{
+    public static function addToFile(string $path, int|string $entryKey, mixed $entryValue, bool $addToTop=false):bool{
         $existing = self::readFile($path);
         if($addToTop === true){
             $new[$entryKey] = $entryValue;
@@ -815,61 +808,57 @@ class json{
         }
         return self::writeFile($path,$new,true);
     }
-    public static function readFile($path,$createIfNonexistant=true,$expectedValues=array()):mixed{
+    public static function readFile(string $path, bool $createIfNonexistant=false, mixed $expectedValue=[]):mixed{
         //Chech if file exists
-        $existing = false;
         $logpath = $path;
-        if(substr($path,0,4) === "http"){
+        if(strtolower(substr($path,0,4)) === "http"){
             $logpath = "URL";
-            extensions::ensure("openssl");
-            $domain = substr($path,strpos($path,"//"));
-            $domain = substr($domain,0,strpos($domain,"/"));
-            $existing = true;
-            $createIfNonexistant = false;
+            if(!extension_ensure("openssl")){
+                mklog(2, 'Cannot open urls unless openssl is enabled');
+                return false;
+            }
 
-            $options = [
-                "http" => [
-                    "header" => "User-Agent: PHP-CLI json\r\n"
-                ]
-            ];
-            $context = stream_context_create($options);
-            $json = @file_get_contents($path,false,$context);
-            goto afterfileopen;
+            $context = stream_context_create(["http" => ["header" => "User-Agent: PHP-CLI " . $_SERVER['COMPUTERNAME'] . "\r\n"]]);
+            $json = @file_get_contents($path, false, $context);
         }
         else{
-            $existing = is_file($path);
-        }
-        if($existing){
-            //Check if file can be read
-            $json = @file_get_contents($path);
-            afterfileopen:
-            if($json === false){
-                //Error is file cannot be read
-                mklog("warning","Failed to read from file: ". $logpath);
-            }
-            //If file can be read, return array of json values
-            else{
-                return json_decode($json,true);
-            }
-        }
-        else{
-            if($createIfNonexistant){
-                mklog("general","Attempt made to read from nonexistant file: " . $logpath . ", creating file");
-                txtrw::mktxt($path,json_encode($expectedValues,JSON_PRETTY_PRINT));
-                return $expectedValues;
+            if(is_file($path)){
+                $json = @file_get_contents($path);
             }
             else{
-                mklog("warning","Attempt made to read from nonexistant file: " . $logpath);
+                if($createIfNonexistant){
+                    if(!txtrw::mktxt($path, json_encode($expectedValue, JSON_PRETTY_PRINT))){
+                        mklog(2, 'Failed to create file while reading ' . $logpath);
+                    }
+                    return $expectedValue;
+                }
+                else{
+                    mklog(2, "Attempt made to read from nonexistant file: " . $logpath);
+                    return false;
+                }
             }
         }
-        return false;
+
+        if(!is_string($json)){
+            mklog(2, 'Failed to read from file ' . $logpath);
+            return false;
+        }
+
+        $decoded = json_decode($json,true);
+
+        if($decoded === NULL){
+            mklog(2, 'Failed to decode json in file ' . $logpath);
+            return false;
+        }
+
+        return $decoded;
     }
     public static function writeFile(string $path, mixed $value, bool $overwrite=false):bool{
         $json = json_encode($value,JSON_PRETTY_PRINT);
         if($json === false){
             return false;
         }
-        return txtrw::mktxt($path,$json,$overwrite);
+        return files::mkFile($path, $json, "w", $overwrite);
     }
 }
 class time{
@@ -896,59 +885,97 @@ class timetest{
 }
 class txtrw{
     public static function mktxt(string $file, string $content, bool $overwrite = false):bool{
-        if(is_file($file)){
-            $writeFile = false;
-        }
-        else{
-            $writeFile = true;
-        }
-    
-        if($overwrite === true){
-            $writeFile = true;
-        }
-    
-        if($writeFile){
-            $dir = files::getFileDir($file);
-            if($dir !== ""){
-                files::ensureFolder($dir);
-            }
-
-            $f = @fopen($file,"w");
-            if($f === false){
-                mklog("warning","Unable to access file: ". $file);
-                return false;
-            }
-
-            if(@fwrite($f,$content) === false){
-                mklog("warning","Unable to write to file: ". $file);
-                @fclose($f);
-                return false;
-            }
-
-            @fclose($f);
-            return true;
-        }
-
-        return false;
+        return files::mkFile($file, $content, "w", $overwrite);
     }
-    public static function readtxt(string $file):string|false{
-        //Check if file exists
+    public static function readtxt(string $file, bool $createIfNonexistant=false):string|false{
         if(!is_file($file)){
-            //Create file if it does not exist
-            mklog("general","Attempt made to read from file that does not exist, creating file with no contents");
-            self::mktxt($file,"");
-        }
-        else{
-            //Return file contents if it exists
-            $filecontents = file_get_contents($file);
-            if($filecontents === false){
-                mklog("error","Unable to read from file: " . $file);
+            if($createIfNonexistant){
+                if(self::mktxt($file, "")){
+                    return "";
+                }
+                else{
+                    mklog(2, 'Failed to create file to read ' . $file);
+                    return false;
+                }
             }
             else{
-                return $filecontents;
+                mklog(2, 'Failed to read from nonexistant file ' . $file);
+                return false;
             }
         }
-        return false;
+        else{
+            $filecontents = file_get_contents($file);
+            if(is_string($filecontents)){
+                return $filecontents;
+            }
+            else{
+                mklog(2, "Failed to read from file: " . $file);
+                return false;
+            }
+        }
+    }
+    public static function replaceLineBeginingWith(string|array $input, string $starting, string $replacement, array $comments=['#','//']):bool|array{
+        if(is_string($input)){
+            if(!is_file($input)){
+                mklog(2, 'File ' . $input . ' does not exist');
+                return false;
+            }
+
+            $lines = file($input);
+            if(!is_array($lines)){
+                mklog(2, 'Failed to read from file ' . $input);
+                return false;
+            }
+        }
+        else{
+            if(!array_is_list($input)){
+                mklog(2, 'Cannot use non list array for input');
+                return false;
+            }
+            $lines = $input;
+        }
+
+        if(!array_is_list($comments)){
+            mklog(2, 'Cannot use non list array for comments');
+            return false;
+        }
+
+        $commentsLength = [];
+        foreach($comments as $comment){
+            $commentsLength[$comment] = strlen($comment);
+        }
+        unset($comments);
+        
+        $count = strlen($starting);
+        $somethingHappened = false;
+        foreach($lines as $index => $line){
+            $line = trim($line);
+            if(empty($line)){
+                continue;
+            }
+
+            foreach($commentsLength as $comment => $commentLength){
+                if(substr($line, 0, $commentLength) === $comment){
+                    continue;
+                }
+            }
+
+            if(substr($line,0,$count) === $starting){
+                $lines[$index] = $replacement . "\n";
+                $somethingHappened = true;
+                break;
+            }
+        }
+
+        if(!$somethingHappened){
+            return false;
+        }
+
+        if(is_string($input)){
+            return self::mktxt($input, implode($lines), true);
+        }
+
+        return $lines;
     }
 }
 class user_input{
@@ -956,26 +983,51 @@ class user_input{
         if($newline){
             echo "\n";
         }
-        $line = trim(fgets($GLOBALS['stdin']));
-        $return = $line;
+
+        $return = trim(fgets($GLOBALS['stdin']));
+
         if($returnArray){
-            $return = explode(" ",$line);
+            $return = str_getcsv($return, ' ');
         }
         return $return;
     }
     public static function yesNo():bool{
-        start:
-        echo "\ny/n >";
-        $res = strtolower(self::await());
-        if($res === "y"){
-            return true;
+        $res = "";
+        while(true){
+
+            echo "\ny/n >";
+
+            $res = substr(trim(strtolower(self::await())), 0, 1);
+
+            if($res === "y"){
+                return true;
+            }
+            elseif($res === "n"){
+                return false;
+            }
         }
-        elseif($res === "n"){
-            return false;
-        }
-        else{
-            goto start;
-        }
+    }
+}
+
+function extension_enable(string $extension):bool{
+    if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $extension)){
+        mklog(2, 'Invalid extension name ' . $extension);
         return false;
     }
+
+    if(!txtrw::replaceLineBeginingWith('php/php.ini', ';extension=' . $extension, 'extension=' . $extension, [])){
+        mklog(2, 'Could not enable extension ' . $extension);
+        return false;
+    }
+
+    mklog(1, 'Enabled extension ' . $extension . ', please restart PHP-CLI for the changes to take effect');
+    return true;
+}
+function extension_ensure(string $extension):bool{
+    if(extension_loaded($extension)){
+        return true;
+    }
+
+    extension_enable($extension);
+    return false;
 }

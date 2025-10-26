@@ -111,9 +111,6 @@ class pkgmgr{
         }
     }
     public static function init():void{
-
-        extensions::init();
-
         if(!is_dir('packages')){
             if(!mkdir('packages',0777,true)){
                 mklog(3,'Failed to create packages directory');
@@ -377,10 +374,10 @@ class pkgmgr{
                     mklog(0,'Downloading dependencies for package ' . $packageId);
                     if(isset($info2['dependencies'])){
                         if(is_array($info2['dependencies'])){
-                            foreach($info2['dependencies'] as $dependecy => $dependencyVersion){
-                                if(!class_exists($dependecy)){
-                                    if(!self::downloadPackage($dependecy)){
-                                        mklog(2,'Failed to download dependency for ' . $packageId . ': ' . $dependecy);
+                            foreach($info2['dependencies'] as $dependency => $dependencyVersion){
+                                if(!class_exists($dependency)){
+                                    if(!self::downloadPackage($dependency)){
+                                        mklog(2,'Failed to download dependency for ' . $packageId . ': ' . $dependency);
                                     }
                                 }
                             }
@@ -454,7 +451,7 @@ class pkgmgr{
         }
         return $return;
     }
-    public static function getPackageFileDependencies(string $packageId):array|false{
+    public static function getPackageFileDependencies(string $packageId, bool $getLatestVersions=true):array|false{
         if(!self::validatePackageId($packageId)){
             return false;
         }
@@ -508,10 +505,25 @@ class pkgmgr{
                 }
                 
                 if($makedependency){
-
-                    $dependencies[$dependency] = 1;
+                    if($getLatestVersions){
+                        if(!isset($dependencies[$dependency])){
+                            mklog(1, 'Checking latest version of ' . $dependency);
+                            $onlineInfo = self::getPackageInfo($dependency, true);
+                            if(is_array($onlineInfo) && isset($onlineInfo['latest_version'])){
+                                $dependencies[$dependency] = $onlineInfo['latest_version'];
+                            }
+                            else{
+                                $dependencies[$dependency] = 1;
+                                mklog(2, 'Failed to get latest version for ' . $dependency);
+                            }
+                        }
+                    }
+                    else{
+                        if(!in_array($dependency, $dependencies)){
+                            $dependencies[] = $dependency;
+                        }
+                    }
                 }
-                
             }
             $offset = $pos+2;
         }
