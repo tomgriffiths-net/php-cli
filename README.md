@@ -35,7 +35,7 @@ Anything that uses services or installs an application or manages other processe
 # Arguments
 The program can accept basic command line arguments, these arguments can be set when executing the cli.php script.
 
-e.g. php\php.exe cli.php <arg1> <arg1 value> <arg2> <arg2 value>
+e.g. php\php.exe cli.php [arg1] [arg1 value] [arg2] [arg2 value]
 The program can also accept arguments set in cli.php with the fileArguments variables at the top of the file.
 
 
