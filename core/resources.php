@@ -987,7 +987,7 @@ class user_input{
         $return = trim(fgets($GLOBALS['stdin']));
 
         if($returnArray){
-            $return = str_getcsv($return, ' ');
+            $return = str_getcsv($return, ' ', '"', '\\');
         }
         return $return;
     }

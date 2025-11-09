@@ -22,7 +22,6 @@ Anything that uses services or installs an application or manages other processe
 - **cli new [command line arguments]**: Starts a new PHP-CLI window, command line arguments are optional.
 - **cli reload**: Closes current PHP-CLI window and opens a new one with the same permission level, command line arguments are not copied.
 - **cli clear**: Clears the command window.
-- **extensions ensure-default**: Applies default extensions, is run by default when opening PHP-CLI.
 - **pkgmgr install [package_id]**: Installs a package.
 - **pkgmgr list**: Lists the installed packages.
 - **pkgmgr list desc**: Lists the installed packages with their latest description.
@@ -63,9 +62,10 @@ command line argument conversion examples:
 # Program Docs
 - **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
 - **verboseLogging():bool**: Returns the value of the verbose-logging argument.
-- **cli::run(string $line):bool**: Runs a command as if it were typed into the cli, returns true if the command exists or false on failure.
+- **cli::run(string $line, bool $captureOutput=false):bool|string**: Runs a command as if it were typed into the cli, returns true if the command exists or false on failure.
 - **cli::info():array**: Returns useful information about the cli.
 - **cli::registerAlias(string $alias, string $command):bool**: Registers an alias for a command, returns true on success or false on failure.
+- **cli::parseLine(string $line):array**: Parses a command string into arguments, options and parameters. inputted "words" can be quoted with double-quotes to stop spaces making it 2 words. Arguments (args) are strings on their own, options are preceded with a "-" and are added to the options list if they exist, parameters are preceded with "--" and then take watever was behind them as the value, this is added to the params array and is keyed with the parameter name and has the parameter string value.
 - **extension_enable(string $extensionName):bool**: Edits the php/php.ini file to enable a given extension on the next start, returns true on success or false on failure.
 - **extension_ensure(string $extensionName):bool**: Uses php's built in extension_loaded() to check if a given extension is loaded, if it is not loaded then it will run extension_enable(), returns true if the extension was already loaded and false otherwise.
 

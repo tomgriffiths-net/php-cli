@@ -1,4 +1,8 @@
 <?php
+mklog(1,'Loading packages');
+require 'packages.php';
+//packages loaded
+
 mklog(1,'Took ' . round(microtime(true) - cli::info()['startTime'], 3) . ' seconds to start');
 
 cli::start();
@@ -7,18 +11,23 @@ class cli{
     private static $started = false;
     private static $aliases = [];
 
-    public static function info():array{
-        return [
-            'version' => 100,
-            'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
-            'pcName' => $_SERVER['COMPUTERNAME'],
-            'pcDrive' => $_SERVER['SystemDrive'],
-            'cpuThreads' => $_SERVER['NUMBER_OF_PROCESSORS'],
-            'cpuType' => $_SERVER['PROCESSOR_ARCHITECTURE'],
-            'phpVersionNumeric' => PHP_VERSION_ID,
-            'phpVersion' => phpversion()
-        ];
+    public static function command($line):void{
+        $lines = explode(" ", $line);
+        if($lines[0] === "new"){
+            cmd::newWindow("php\php cli.php " . substr($line,4));
+        }
+        elseif($lines[0] === "reload"){
+            cmd::newWindow("php\php cli.php");
+            exit;
+        }
+        elseif($lines[0] === "clear"){
+            cli_formatter::clear();
+        }
+        else{
+            echo "Commands: new [args], reload, clear\n";
+        }
     }
+
     public static function start(){
         if(self::$started){
             return;
@@ -32,7 +41,7 @@ class cli{
             self::after();
         }
     }
-    public static function run(string $line):bool{
+    public static function run(string $line, bool $captureOutput=false):bool|string{
         $return = false;
         if($line === "exit"){
             exit;
@@ -50,7 +59,11 @@ class cli{
         $baseCommand = strtolower($baseCommand);
 
         if(isset(self::$aliases[$baseCommand])){
-            return self::run(self::$aliases[$baseCommand] . " " . $line);
+            return self::run(self::$aliases[$baseCommand] . " " . $line, $captureOutput);
+        }
+
+        if($captureOutput){
+            ob_start();
         }
 
         if(class_exists($baseCommand)){
@@ -65,30 +78,18 @@ class cli{
                 }
             }
             else{
-                mklog(2,"The package " . $baseCommand . " does not have a command function\n");
+                echo "The package " . $baseCommand . " does not have a command function.\n";
             }
         }
         else{
-            mklog(2,"Unknown Command: " . $baseCommand . "\n");
+            echo "Unknown package or command: " . $baseCommand . "\n";
+        }
+
+        if($captureOutput){
+            return ob_get_clean();
         }
         
         return $return;
-    }
-    public static function command($line):void{
-        $lines = explode(" ", $line);
-        if($lines[0] === "new"){
-            cmd::newWindow("php\php cli.php " . substr($line,4));
-        }
-        elseif($lines[0] === "reload"){
-            cmd::newWindow("php\php cli.php");
-            exit;
-        }
-        elseif($lines[0] === "clear"){
-            cli_formatter::clear();
-        }
-        else{
-            echo "Commands: new [args], reload, clear\n";
-        }
     }
     public static function registerAlias(string $alias, string $command):bool{
         if(class_exists($alias) || isset(self::$aliases[$alias]) || $alias === "exit"){
@@ -96,6 +97,52 @@ class cli{
         }
         self::$aliases[$alias] = $command;
         return true;
+    }
+
+    public static function info():array{
+        return [
+            'version' => 101,
+            'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
+            'pcName' => gethostname(),
+            'pcDrive' => $_SERVER['SystemDrive'],
+            'cpuThreads' => $_SERVER['NUMBER_OF_PROCESSORS'],
+            'cpuType' => $_SERVER['PROCESSOR_ARCHITECTURE'],
+            'phpVersionNumeric' => PHP_VERSION_ID,
+            'phpVersion' => phpversion()
+        ];
+    }
+    public static function parseLine(string $line):array{
+        $words = str_getcsv($line, ' ', '"', '\\');
+    
+        $return = [
+            "args" => [],
+            "options" => [],
+            "params" => []
+        ];
+
+        $param = null;
+        foreach($words as $word){
+            $word = trim($word);
+
+            if($param){
+                $return["params"][$param] = $word;
+                $param = null;
+                continue;
+            }
+
+            if(substr($word, 0, 2) === "--" && strlen($word) > 2){
+                $param = strtolower(substr($word, 2));
+                continue;
+            }
+            if(substr($word, 0, 1) === "-"  && strlen($word) > 1){
+                $return["options"][] = strtolower(substr($word, 1));
+                continue;
+            }
+
+            $return["args"][] = $word;
+        }
+
+        return $return;
     }
 
     private static function getCommands():array{
