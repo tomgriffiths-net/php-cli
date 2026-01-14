@@ -333,7 +333,7 @@ class pkgmgr{
             }
 
             if(is_dir('packages/' . $packageId . '/files')){
-                if(!cmd::run('rmdir ' . files::validatePath('packages/' . $packageId . '/files') . ' /S /Q')){
+                if(!cmd::run('rmdir ' . files::validatePath('packages/' . $packageId . '/files', true) . ' /S /Q')){
                     mklog(2,'Failed to remove old /files for package ' . $packageId);
                 }
             }
