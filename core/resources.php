@@ -17,6 +17,9 @@ class cli_formatter{
         echo "\007";
     }
     public static function formatLine(string $string, string|bool $colour = false, string|bool $background = false, bool $newline = true, string|bool $attributes = false):string{
+
+        //Based on https://gist.github.com/donatj/1315354
+
         $colourValues = array(
             'bold'         => '1',    'dim'          => '2',
             'black'        => '0;30', 'dark_gray'    => '1;30',
