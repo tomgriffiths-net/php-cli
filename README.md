@@ -60,7 +60,7 @@ command line argument conversion examples:
 
 
 # Program Docs
-- **mklog(int $type, string $message)**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging.
+- **mklog(int $type, string $message, string $formattedMessage):void**: Creates a log with a specific type and message. There are 4 types availabe, 0.Verbose, 1.General, 2.Warning, and 3.Error. Logs are found in the logs folder seperated by month. The verbose logs will only show when something has enabled verbose-logging. The formatted message will be shown to the user if present.
 - **verboseLogging():bool**: Returns the value of the verbose-logging argument.
 - **cli::run(string $line, bool $captureOutput=false):bool|string**: Runs a command as if it were typed into the cli, returns true if the command exists or false on failure.
 - **cli::info():array**: Returns useful information about the cli.
