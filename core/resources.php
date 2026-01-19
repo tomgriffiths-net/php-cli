@@ -89,7 +89,7 @@ class cli_formatter{
 }
 class cmd{
     public static function newWindow(string $command, bool $keepOpen = false){
-        mklog(0,'Starting process with command ' . $command);
+        mklog(0, 'Starting process with command ' . $command);
         $cmdMode = "c";
         if($keepOpen){
             $cmdMode = "k";
@@ -101,7 +101,9 @@ class cmd{
             $command .= "  >nul 2>&1";
         }
 
-        exec($command,$output,$result);
+        mklog(0, "Running command " . $command);
+
+        exec($command, $output, $result);
 
         if($returnOutput){
             return $output;
@@ -114,12 +116,15 @@ class cmd{
         return false;
     }
     public static function returnNewWindow(string $command, int $retries = 10, int $retryInterval = 1):string|bool{
+        mklog(0, "Warn: returnNewWindow may not return the correct data");
+
         $time = floor(microtime(true)*1000);
         $outFile = 'tmp_out_' . $time;
         self::newWindow($command . ' > ' . $outFile,false);
         $tries = 0;
         $lastSize = 0;
 
+        mklog(0, "Monitoring output file for size changes...");
         while(true){
             sleep($retryInterval);
             if(is_file($outFile)){
@@ -347,7 +352,7 @@ class data_types{
 }
 class downloader{
     public static function downloadFile(string $url, string $outFile):bool{
-        mklog(1, 'Downloading file ' . files::getFileName($url));
+        mklog(1, 'Downloading file ' . basename($url));
 
         if(is_file($outFile)){
             mklog(2, 'The download destination already exists');
@@ -377,6 +382,7 @@ class downloader{
             CURLOPT_FAILONERROR => true
         ]);
 
+        mklog(0, "Retreiving file from " . $url);
         @curl_exec($curl);
 
         if(curl_errno($curl) === 0){
@@ -387,10 +393,13 @@ class downloader{
             mklog(2, 'Download error: ' . curl_error($curl));
         }
 
-        curl_close($curl);
-        fclose($file);
+        @curl_close($curl);
+        if(!@fclose($file)){
+            mklog(2, 'Failed to close output file ' . $outFile);
+        }
 
         if(!is_file($outFile)){
+            mklog(2, 'The output file ' . $outFile . ' doesnt exist after downloading');
             $return = false;
         }
         
@@ -421,6 +430,8 @@ class files{
     private static $progressLocalCurrent = 0;
     private static $progressLastCurrent = 0;
     public static function globRecursive(string $base, string $pattern, $flags = 0):array{
+        mklog(1, "Recursivly globbing folder " . $base);
+
         $flags = $flags & ~GLOB_NOCHECK;
         
         if (substr($base, -1) !== DIRECTORY_SEPARATOR) {
@@ -468,7 +479,9 @@ class files{
             mklog(2, 'Failed to create directory ' . $path . ' as a file exists with the same name');
         }
 
-        return mkdir($path,0777,true);
+        mklog(0, "Creating directory " . $path);
+
+        return mkdir($path, 0777, true);
     }
     public static function mkFile(string $path, string $data, string $fopenMode = "w", bool $overwrite=true):bool{
         if(empty($path)){
@@ -494,6 +507,8 @@ class files{
             }
         }
 
+        mklog(0, 'Opening file ' . $path . ' with fopen mode ' . $fopenMode);
+
         $stream = fopen($path, $fopenMode);
         if(!$stream){
             mklog(2, 'Failed to open file ' . $path . ' with mode ' . $fopenMode);
@@ -512,7 +527,10 @@ class files{
             $return = false;
         }
 
-        if(!fclose($stream)){
+        if(fclose($stream)){
+            mklog(0, 'Closed file ' . $path);
+        }
+        else{
             mklog(2, 'Failed to close/save file ' . $path);
             $return = false;
         }
@@ -532,6 +550,8 @@ class files{
         return $file;
     }
     public static function copyFile(string $pathFrom, string $pathTo, bool $showProgress=false):bool{
+        mklog(1, 'Copying file ' . $pathFrom . ' to ' . $pathTo);
+
         if(!is_file($pathFrom)){
             mklog(2, 'Cannot copy from nonexistant source ' . $pathFrom);
             return false;
@@ -550,9 +570,9 @@ class files{
             }
         }
 
-        mklog(1, 'Copying file ' . $pathFrom . ' to ' . $pathTo);
-
         if($showProgress){
+            mklog(0, 'Copying file in chunk/progress mode');
+
             $totalBytes = filesize($pathFrom);
             if(!$totalBytes){
                 mklog(2, 'Failed to get size of file');
@@ -575,14 +595,17 @@ class files{
             $bytesCopied = 0;
             while(!feof($in)){
                 $chunk = fread($in, 1024*1024);
-                if($chunk === false){
-                    mklog(2, 'Failed to read from source file');
-                    @fclose($in); @fclose($out); @unlink($pathTo);
-                    return false;
-                }
-                if(!fwrite($out, $chunk)){
-                    mklog(2, 'Failed to write to destination file');
-                    @fclose($in); @fclose($out); @unlink($pathTo);
+
+                if($chunk === false || !fwrite($out, $chunk)){
+
+                    mklog(2, ($chunk === false ? 'Failed to read chunk from source file' : 'Failed to write chunk to destination file'));
+
+                    if(fclose($in)){
+                        mklog(2, 'Failed to close input file');
+                    }
+                    
+                    @fclose($out);
+                    @unlink($pathTo);
                     return false;
                 }
 
@@ -596,8 +619,12 @@ class files{
                 return false;
             }
 
-            fclose($in);
-            fclose($out);
+            if(fclose($in)){
+                mklog(2, 'Failed to close input file');
+            }
+            if(fclose($out)){
+                mklog(2, 'Failed to close output file');
+            }
 
             return true;
         }
@@ -798,6 +825,8 @@ class files{
     }
 }
 class json{
+    private static $readCache = [];
+
     public static function addToFile(string $path, int|string $entryKey, mixed $entryValue, bool $addToTop=false):bool{
         $existing = self::readFile($path);
         if($addToTop === true){
@@ -812,10 +841,25 @@ class json{
         return self::writeFile($path,$new,true);
     }
     public static function readFile(string $path, bool $createIfNonexistant=false, mixed $expectedValue=[]):mixed{
-        //Chech if file exists
-        $logpath = $path;
-        if(strtolower(substr($path,0,4)) === "http"){
-            $logpath = "URL";
+        global $arguments; //json-read-cache-timeout
+        if(!is_int($arguments['json-read-cache-timeout'])){
+            $arguments['json-read-cache-timeout'] = 1;
+        }
+        if(!is_int($arguments['json-url-read-cache-timeout'])){
+            $arguments['json-url-read-cache-timeout'] = 5;
+        }
+
+        $url = strtolower(substr($path,0,4)) === "http";
+        $timeout = $url ? $arguments['json-url-read-cache-timeout'] : $arguments['json-read-cache-timeout'];
+
+        if(isset(self::$readCache[$path]) && microtime(true) - self::$readCache[$path]['lasttime'] < $timeout){
+            mklog(0, 'Reading from cached ' . ($url ? 'URL ' : 'file ') . $path);
+            return self::$readCache[$path]['contents'];
+        }
+
+        mklog(0, 'Reading from ' . ($url ? 'URL ' : 'file ') . $path);
+
+        if($url){
             if(!extension_ensure("openssl")){
                 mklog(2, 'Cannot open urls unless openssl is enabled');
                 return false;
@@ -831,42 +875,56 @@ class json{
             else{
                 if($createIfNonexistant){
                     if(!txtrw::mktxt($path, json_encode($expectedValue, JSON_PRETTY_PRINT))){
-                        mklog(2, 'Failed to create file while reading ' . $logpath);
+                        mklog(2, 'Failed to create file while reading file ' . $path);
                     }
                     return $expectedValue;
                 }
                 else{
-                    mklog(2, "Attempt made to read from nonexistant file: " . $logpath);
+                    mklog(2, "Attempt made to read from nonexistant file " . $path);
                     return false;
                 }
             }
         }
 
         if(!is_string($json)){
-            mklog(2, 'Failed to read from file ' . $logpath);
+            mklog(2, 'Failed to read from ' . $path);
             return false;
         }
 
-        $decoded = json_decode($json,true);
+        $decoded = json_decode($json, true);
 
         if($decoded === NULL){
-            mklog(2, 'Failed to decode json in file ' . $logpath);
+            mklog(2, 'Failed to decode json in file ' . $path);
             return false;
         }
+
+        self::$readCache[$path]['lasttime'] = microtime(true);
+        self::$readCache[$path]['contents'] = $decoded;
 
         return $decoded;
     }
     public static function writeFile(string $path, mixed $value, bool $overwrite=false):bool{
-        $json = json_encode($value,JSON_PRETTY_PRINT);
+        mklog(0, 'Writing to file ' . $path);
+
+        $json = json_encode($value, JSON_PRETTY_PRINT);
         if($json === false){
             return false;
         }
-        return files::mkFile($path, $json, "w", $overwrite);
+
+        if(!files::mkFile($path, $json, "w", $overwrite)){
+            mklog(2, 'Failed to write to file ' . $path);
+            return false;
+        }
+
+        self::$readCache[$path]['lasttime'] = microtime(true);
+        self::$readCache[$path]['contents'] = $value;
+
+        return true;
     }
 }
 class time{
     public static function stamp(){
-        return floor(microtime(true));
+        return time();
     }
     public static function millistamp(){
         return floor(microtime(true)*1000);
@@ -887,12 +945,13 @@ class timetest{
     }
 }
 class txtrw{
-    public static function mktxt(string $file, string $content, bool $overwrite = false):bool{
+    public static function mktxt(string $file, string $content, bool $overwrite=false):bool{
         return files::mkFile($file, $content, "w", $overwrite);
     }
     public static function readtxt(string $file, bool $createIfNonexistant=false):string|false{
         if(!is_file($file)){
             if($createIfNonexistant){
+                mklog(0, 'Creating nonexistant file for reading with no contents');
                 if(self::mktxt($file, "")){
                     return "";
                 }
@@ -1013,6 +1072,8 @@ class user_input{
 }
 
 function extension_enable(string $extension):bool{
+    mklog(0, 'Enabling extension ' . $extension);
+
     if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $extension)){
         mklog(2, 'Invalid extension name ' . $extension);
         return false;
@@ -1023,7 +1084,7 @@ function extension_enable(string $extension):bool{
         return false;
     }
 
-    mklog(1, 'Enabled extension ' . $extension . ', please restart PHP-CLI for the changes to take effect');
+    mklog(1, 'Enabled extension ' . $extension . ' in php\php.ini, please restart PHP-CLI for the changes to take effect');
     return true;
 }
 function extension_ensure(string $extension):bool{

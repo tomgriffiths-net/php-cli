@@ -2,10 +2,12 @@
 //Required checks
 if($_SERVER['OS'] !== "Windows_NT"){
     echo "ERROR: This program can only run on modern Windows\n";
+    sleep(10);
     exit;
 }
 if(PHP_VERSION_ID < 80000){
     echo "ERROR: PHP Version 8 or newer is required to run PHP-CLI\n";
+    sleep(10);
     exit;
 }
 if(PHP_VERSION_ID < 80301){
@@ -31,8 +33,18 @@ require 'resources.php';
 //Loaded: cli_formatter,cmd,commandline_list,data_types,downloader,extensions,files,json,time,txtrw,user_input
 
 mklog(0,'Reading start arguments');
+
+if(!isset($fileArguments)){
+    $fileArguments = [];
+}
+if(!is_array($fileArguments)){
+    mklog(2,'Unknown fileArguments configuration, ignoring all');
+    $fileArguments = [];
+}
+
 $arguments = (function(){
     global $argv;
+    global $fileArguments;
 
     //Set default arguments
     $defaultArguments = [
@@ -40,7 +52,9 @@ $arguments = (function(){
         'use-file-as-input' => false,
         'file-as-input-delay' => 10,
         'no-loop' => false,
-        'command' => false
+        'command' => false,
+        'json-read-cache-timeout' => 1,
+        'json-url-read-cache-timeout' => 5
     ];
 
     $lineArguments = [];
@@ -48,7 +62,7 @@ $arguments = (function(){
     $argvCount = count($argv);
     if($argvCount %2 === 0){
         //Ignore arguments if even number of arguments (extra arguments number is arguments -1 as first argument is filename)
-        mklog(2,'Missmach in arguments provided via commandline, ignoring all');
+        mklog(2, 'Missmach in arguments provided via commandline, ignoring all');
     }
     else{
         //Go through each provided command line argument
@@ -61,16 +75,6 @@ $arguments = (function(){
         foreach($lineArguments as $lineArgumentName => $lineArgumentValue){
             $lineArguments[$lineArgumentName] = data_types::convert_string($lineArgumentValue);
         }
-    }
-
-    if(isset($fileArguments)){
-        if(!is_array($fileArguments)){
-            mklog(2,'Unknown fileArguments configuration, ignoring all');
-            $fileArguments = [];
-        }
-    }
-    else{
-        $fileArguments = [];
     }
 
     //Now there are three argument arrays that will be overritten by the array after it: defaultArguments, fileArguments, lineArguments
@@ -92,14 +96,32 @@ $arguments = (function(){
         }
         
         //Log stuff
-        if(is_bool($arguments[$defaultArgumentName])){
-            $currentArgumentLogValue = data_types::boolean_to_string($arguments[$defaultArgumentName]);
+        if(verboseLogging()){
+            if(is_bool($arguments[$defaultArgumentName])){
+                $currentArgumentLogValue = data_types::boolean_to_string($arguments[$defaultArgumentName]);
+            }
+            else{
+                $currentArgumentLogValue = $arguments[$defaultArgumentName];
+            }
+
+            $type = gettype($arguments[$defaultArgumentName]);
+
+            $colors = ["boolean"=>"light_blue", "integer"=>"light_green", "double"=>"light_green", "string"=>"light_red"];
+            $color = false;
+            if(isset($colors[$type])){
+                $color = $colors[$type];
+            }
+
+            $defaultArgumentNameFormatted = cli_formatter::formatLine($defaultArgumentName, "white", false, false);
+            $currentArgumentLogValueFormatted = cli_formatter::formatLine($currentArgumentLogValue, $color, false, false);
+            $typeFormatted = cli_formatter::formatLine($type, "white", false, false);
+
+            mklog(
+                0,
+                'Argument ' . $defaultArgumentName . ' is set to ' . $currentArgumentLogValue . ' with data type of ' . $type,
+                $color ? 'Argument ' . $defaultArgumentNameFormatted . ' is set to ' . $currentArgumentLogValueFormatted . ' with data type of ' . $typeFormatted : ''
+            );
         }
-        else{
-            $currentArgumentLogValue = $arguments[$defaultArgumentName];
-        }
-        mklog(0,'Argument ' . $defaultArgumentName . ' is set to ' . $currentArgumentLogValue . ' with data type of ' . gettype($arguments[$defaultArgumentName]));
-        
     }
 
     return $arguments;
@@ -114,43 +136,55 @@ exec('title PHP-CLI: ' . getcwd());
 mklog(0,'Loading stdin and stdout');
 $stdout = fopen("php://stdout","w");
 if(!$stdout){
-    mklog(3,'Unable to load stdout',false);
+    mklog(2,'Unable to load stdout');
 }
 
 $stdin = fopen("php://stdin","r");
 if(!$stdin){
-    mklog(3,'Unable to load stdin',false);
+    mklog(3,'Unable to load stdin');
 }
 
 //////////
 
 require 'main.php';
 
-function mklog(int|string $type, string $message, bool $verbose=true):void{
+function mklog(int|string $type, string $message, string|bool $formattedMessage=''):void{
     //Convert old to new format if detected
     if(!is_int($type)){
+
+        mklog(0, 'The following log used an outdated version of mklog()');
+
         $type = substr(strtolower($type), 0, 1);
-        $type = ["g"=>1,"w"=>2,"e"=>3][$type];
-        if($verbose){
+
+        if($type === "e"){$type = 3;}
+        elseif($type === "w"){$type = 2;}
+        else{$type = 1;}
+
+        if($formattedMessage === true){
             $type = 0;
         }
+    }
+
+    if(!is_string($formattedMessage)){
+        $formattedMessage = '';
     }
 
     //
 
     $type = min(max($type,0),3);
 
-    $trace = debug_backtrace();
-    if(isset($trace[1]['class'])){
-        $message = $trace[1]['class'] . ': ' . $message;
-    }
-
     $verboseloggingsetting = verboseLogging();
 
     if($type || $verboseloggingsetting){
-        //Full line
-        $dateAndTime = date("Y-m-d_H:i:s:") . substr(floor(microtime(true)*1000), -3);
-        $line = $dateAndTime . ": " . ["Verbose","General","Warning","Error"][$type] . ": " . $message;
+
+        $prefix = date("Y-m-d_H:i:s:") . substr(floor(microtime(true)*1000), -3) . ": " . ["Verbose","General","Warning","Error"][$type] . ": ";
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        if(isset($trace[1]['class'])){
+            $prefix .= $trace[1]['class'] . ': ';
+        }
+
+        $cliFormatterExists = class_exists('cli_formatter');
 
         //Display log
         $colour = "normal";
@@ -159,11 +193,15 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         }
         if($type === 2){$colour = "yellow";}
         if($type === 3){$colour = "red";}
-        if($colour !== "normal" && class_exists('cli_formatter')){
-            echo cli_formatter::formatLine($line,$colour);
+
+        if(!empty($formattedMessage)){
+            echo $prefix . $formattedMessage . "\n";
+        }
+        elseif($colour !== "normal" && $cliFormatterExists){
+            echo cli_formatter::formatLine($prefix . $message, $colour);
         }
         else{
-            echo $line . "\n";
+            echo $prefix . $message . "\n";
         }
 
         //Write files
@@ -171,7 +209,7 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         if(!$stream){
             echo "Error: Unable to open latest.log\n";
         }
-        elseif(!fwrite($stream,$line . "\n")){
+        elseif(!fwrite($stream, $prefix . $message . "\n")){
             echo "Error: Unable to write to latest.log\n";
         }
         elseif(!fclose($stream)){
@@ -182,15 +220,18 @@ function mklog(int|string $type, string $message, bool $verbose=true):void{
         if(!$stream){
             echo "Error: Unable to open logs file\n";
         }
-        elseif(!fwrite($stream,$line . "\n")){
+        elseif(!fwrite($stream, $prefix . $message . "\n")){
             echo "Error: Unable to write to logs file\n";
         }
         elseif(!fclose($stream)){
             echo "Error: Unable to save logs file\n";
         }
     }
+
     if($type === 3){
-        cli_formatter::ding();
+        if($cliFormatterExists){
+            cli_formatter::ding();
+        }
         sleep(2);
     }
 }

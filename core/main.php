@@ -44,6 +44,7 @@ class cli{
     public static function run(string $line, bool $captureOutput=false):bool|string{
         $return = false;
         if($line === "exit"){
+            mklog(0, 'Exiting');
             exit;
         }
 
@@ -63,6 +64,7 @@ class cli{
         }
 
         if($captureOutput){
+            mklog(0, 'Breifly capturing output');
             ob_start();
         }
 
@@ -95,13 +97,24 @@ class cli{
         if(class_exists($alias) || isset(self::$aliases[$alias]) || $alias === "exit"){
             return false;
         }
+
+        if(verboseLogging()){
+            $class = false;
+            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+            if(isset($trace[1]['class'])){
+                $class = $trace[1]['class'];
+            }
+
+            mklog(0, ($class ? $class . ' r' : 'R') . 'egistered the alias "' . $alias . '" for the command "' . $command . '"');
+        }
+
         self::$aliases[$alias] = $command;
         return true;
     }
 
     public static function info():array{
         return [
-            'version' => 101,
+            'version' => 102,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
             'pcDrive' => $_SERVER['SystemDrive'],
@@ -149,12 +162,15 @@ class cli{
         global $arguments;
 
         if(is_string($arguments['command'])){
+            mklog(0, 'Running argument command');
             $line = $arguments['command'];
         }
         elseif(is_string($arguments['use-file-as-input'])){
             if(!is_file($arguments['use-file-as-input'])){
                 return [];
             }
+
+            mklog(0, 'Running command from the file ' . $arguments['use-file-as-input']);
 
             $line = file_get_contents($arguments['use-file-as-input']);
 
