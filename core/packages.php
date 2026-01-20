@@ -315,7 +315,7 @@ class pkgmgr{
         return $result['data'];
     }
     public static function downloadPackage(string $packageId, int|bool $version=false, bool $getDependencies=true, bool $load=true):bool{
-        if(self::validatePackageId($packageId)){
+        if(!self::validatePackageId($packageId)){
             mklog(2, 'Invalid package id ' . $packageId);
             return false;
         }
