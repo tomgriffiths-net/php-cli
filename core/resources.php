@@ -1,5 +1,16 @@
 <?php
+/**
+ * Allows formatting text in the command line.
+ */
 class cli_formatter{
+    /**
+     * Fills the command line with a certain color.
+     *
+     * @param string $colour The color to fill the cmd window with.
+     * @param integer $width The number of columns in the cmd window.
+     * @param integer $height The number of rows in the cmd window.
+     * @return void
+     */
     public static function fill(string $colour, int $width=120, int $height=29):void{
         self::clear();
         $string = '';
@@ -13,9 +24,24 @@ class cli_formatter{
         }
         echo self::formatLine($string,$colour,false,true,"reverse");
     }
+    /**
+     * Makes the windows warning noise.
+     *
+     * @return void
+     */
     public static function ding():void{
         echo "\007";
     }
+    /**
+     * Formats a string using command line styles.
+     *
+     * @param string $string The string to format.
+     * @param boolean $colour The color of the text.
+     * @param boolean $background The background color for the text.
+     * @param boolean $newline Weather to add a newline character at the end of the string.
+     * @param boolean $attributes A comma seperated list with no spaces of style attributes.
+     * @return string The formatted string.
+     */
     public static function formatLine(string $string, string|bool $colour = false, string|bool $background = false, bool $newline = true, string|bool $attributes = false):string{
 
         //Based on https://gist.github.com/donatj/1315354
@@ -83,20 +109,44 @@ class cli_formatter{
     
         return $output;
     }
+    /**
+     * Clears the text in the cmd window.
+     *
+     * @return void
+     */
     public static function clear():void{
         echo chr(27) . chr(91) . 'H' . chr(27) . chr(91) . 'J';
     }
 }
+/**
+ * Allows some basic command execution.
+ */
 class cmd{
-    public static function newWindow(string $command, bool $keepOpen = false){
+    /**
+     * Runs a command in a new cmd window.
+     *
+     * @param string $command The command to run.
+     * @param boolean $keepOpen Weather to keep the new cmd window open.
+     * @return void
+     */
+    public static function newWindow(string $command, bool $keepOpen=false):void{
         mklog(0, 'Starting process with command ' . $command);
         $cmdMode = "c";
         if($keepOpen){
             $cmdMode = "k";
         }
-        pclose(popen('start cmd.exe /' . $cmdMode . ' "' . $command . '"','r'));
+        pclose(popen('start cmd.exe /' . $cmdMode . ' "' . escapeshellcmd($command) . '"','r'));
     }
-    public static function run(string $command, bool $silent=false, bool $returnOutput=false):bool|array{
+    /**
+     * Runs a command using exec().
+     *
+     * @param string $command The command to be run.
+     * @param boolean $silent Weather to redirect the command stdout and stderr to null.
+     * @param boolean $returnOutput Weather to return the output of the command.
+     * @param int $expectedExit The expected exit code for the command.
+     * @return boolean|array If returnOutput is false, the return is a boolean that is true if the commands exit code was equal to the expected exit code, if returnOutput is true then an array of lines is returned.
+     */
+    public static function run(string $command, bool $silent=false, bool $returnOutput=false, int $expectedExit=0):bool|array{
         if($silent){
             $command .= "  >nul 2>&1";
         }
@@ -109,51 +159,31 @@ class cmd{
             return $output;
         }
 
-        if($result === 0){
+        if($result === $expectedExit){
             return true;
         }
 
         return false;
     }
-    public static function returnNewWindow(string $command, int $retries = 10, int $retryInterval = 1):string|bool{
-        mklog(0, "Warn: returnNewWindow may not return the correct data");
-
-        $time = floor(microtime(true)*1000);
-        $outFile = 'tmp_out_' . $time;
-        self::newWindow($command . ' > ' . $outFile,false);
-        $tries = 0;
-        $lastSize = 0;
-
-        mklog(0, "Monitoring output file for size changes...");
-        while(true){
-            sleep($retryInterval);
-            if(is_file($outFile)){
-                $outFileSize = filesize($outFile);
-                echo $outFileSize . "\n";
-                if($outFileSize > 0 && $lastSize > 0){
-                    if($outFileSize === $lastSize){
-                        $out = file_get_contents($outFile);
-                        unlink($outFile);
-                        return $out;
-                    }
-                }
-                $lastSize = $outFileSize;
-            }
-            else{
-                echo "0\n";
-            }
-            
-            $tries++;
-            if($tries > $retries){
-                return false;
-            }
-        }
-
-        return false;
+    /**
+     * @deprecated
+     */
+    public static function returnNewWindow(string $command):string|false|null{
+        return shell_exec($command);
     }
 }
+/**
+ * Allows you to create command line tables.
+ */
 class commandline_list{
-    public static function table(array $columnNames=array(),array $rowsData=array()):string{
+    /**
+     * Turns some data into a table.
+     *
+     * @param array $columnNames Either a list of column names or an array of column names as keys and column widths as values.
+     * @param array $rowsData A list containing row information, each row information is a list of strings to put into the table cells.
+     * @return string The table.
+     */
+    public static function table(array $columnNames=[], array $rowsData=[]):string{
         $width = 1;
         if(array_is_list($columnNames)){
             foreach($columnNames as $index => $text){
@@ -161,22 +191,31 @@ class commandline_list{
                 unset($columnNames[$index]);
             }
         }
+
         foreach($columnNames as $text => $length){
             $width += $length +4;
             $columnWidths[] = $length;
         }
+        
         $output = self::tableLine($width);
-        $output .= self::tableColumnTitle($columnNames) . "\n";
-        $output .= preg_replace('/[^|]/',"-",self::tableColumnTitle($columnNames)) . "\n";
+        $output .= self::tableRow($columnNames) . "\n";
+        $output .= preg_replace('/[^|]/', "-", self::tableRow($columnNames)) . "\n";
 
         foreach($rowsData as $rowData){
-            $output .= self::tableColumn($rowData,$columnWidths) . "\n";
+            $output .= self::tableRow($rowData,$columnWidths) . "\n";
         }
 
         $output .= self::tableLine($width);
 
         return $output;
     }
+    /**
+     * Limits the length of a string, if the string is over the given length, the string will be cut off at -2 length and have ".." added so the total length is the given length.
+     *
+     * @param string $string The string to be limited.
+     * @param integer $length The desired length.
+     * @return string The limited string.
+     */
     public static function stringLengthLimit(string $string, int $length):string{
         if($length < 3){
             $length = 3;
@@ -186,14 +225,22 @@ class commandline_list{
         }
         return $string;
     }
-    public static function tableColumnTitle($array):string{
-        $output = '|';
-        foreach($array as $data => $length){
-            $output .= ' ' . str_pad(self::stringLengthLimit(data_types::convert_to_string($data),$length),$length," ",STR_PAD_RIGHT) . '  |';
+    /**
+     * Takes in a row of information and turns it into a string representing the row.
+     *
+     * @param array $data Either a list of values to be put into the table, or an array where the keys are the values to put into the table and the values are the width of the columns.
+     * @param array $columnWidths A list of column widths, only used when $data is a list.
+     * @return string
+     */
+    public static function tableRow(array $data, array $columnWidths=[]):string{
+        if(!array_is_list($data)){
+            $columnWidths = array_values($data);
+            $data = array_keys($data);
         }
-        return $output;
-    }
-    public static function tableColumn($data,$columnWidths):string{
+        elseif(count($columnWidths) < count($data)){
+            return "ERROR";
+        }
+
         $output = '|';
         $i = 0;
         foreach($columnWidths as $length){
@@ -207,72 +254,51 @@ class commandline_list{
         }
         return $output;
     }
+    /**
+     * Generates a horizontal table seperator.
+     *
+     * @param integer $width The width of the table.
+     * @return string The seperator string.
+     */
     public static function tableLine(int $width):string{
         return "|" . str_repeat("-",$width-2) . "|\n";
     }
 }
+/**
+ * Type management.
+ */
 class data_types{
-    public static function string_to_float(string $string):float{
-        //Check if string is a number
-        if(is_numeric($string)){
-            //Return value
-            $return = $string;
-        }
-        else{
-            //Return 0
-            $return = 0;
-        }
-        //Convert return to float
-        return floatval($return);
-    }
-    public static function string_to_integer(string $string):int{
-        //Check if string is a number
-        if(is_numeric($string)){
-            //Return value
-            $return = $string;
-        }
-        else{
-            //Return 0
-            $return = 0;
-        }
-        //Convert return to integer
-        return intval($return);
-    }
-    public static function string_to_boolean(string $string):bool{
-        //Assume that the value is false
-        $return = false;
-        //Check if string is "true"
-        if($string === "true"){
-            $return = true;
-        }
-        return $return;
-    }
-    public static function boolean_to_string(bool $boolean):string{
-        $return = "false";
-        if($boolean === true){
-            $return = "true";
-        }
-        return $return;
-    }
+    /**
+     * Converts a string to a fitting type.
+     *
+     * @param string $value The string to convert.
+     * @return integer|float|boolean|string The converted value.
+     */
     public static function convert_string(string $value):int|float|bool|string{
         $return = $value;
         if(is_numeric($value)){
             //Check if the string contains a point
             if(strpos($value,'.')){
                 //Convert string to float
-                $return = self::string_to_float($value);
+                $return = floatval($value);
             }
             else{
                 //Convert string to integer
-                $return = self::string_to_integer($value);
+                $return = intval($value);
             }
         }
-        elseif($value === "true" || $value === "false"){
+        elseif(in_array(strtolower($value), ["true","false"])){
             //convert string to boolean
-            $return = self::string_to_boolean($value);
+            $return = strtolower($value) === "true";
         }
         return $return;
     }
+    /**
+     * Converts a string/float/integer/boolean to a string.
+     *
+     * @param string|float|integer|boolean $value The value to be converted.
+     * @return string The value as a string.
+     */
     public static function convert_to_string(string|float|int|bool $value):string{
         $return = "";
         if(is_string($value)){
@@ -282,15 +308,27 @@ class data_types{
             $return = (string) $value;
         }
         elseif(is_bool($value)){
-            $return = self::boolean_to_string($value);
+            $return = $value ? "true" : "false";
         }
 
         return $return;
     }
+    /**
+     * Converts some xml into a readable array.
+     *
+     * @param string $xml The xml string.
+     * @return array The decoded values.
+     */
     public static function xmlStringToArray(string $xml):array{
         $xml1 = simplexml_load_string($xml);
         return json_decode(json_encode($xml1),true);
     }
+    /**
+     * Converts an array into a string representation that can be given to eval.
+     *
+     * @param array $data The data to convert.
+     * @return string The core string representation.
+     */
     public static function array_to_eval_string(array $data):string{
         $string = '[';
         foreach($data as $key => $value){
@@ -307,6 +345,12 @@ class data_types{
         $string = substr($string, 0, -1) . ']';
         return $string;
     }
+    /**
+     * Converts a value into a code string representation.
+     *
+     * @param array|string|float|integer|boolean $value The value to be converted.
+     * @return string The code string representation.
+     */
     public static function convert_to_eval_string(array|string|float|int|bool $value):string{
         $return = "";
         if(is_array($value)){
@@ -319,11 +363,18 @@ class data_types{
             $return = (string) $value;
         }
         elseif(is_bool($value)){
-            $return = self::boolean_to_string($value);
+            $return = $value ? "true" : "false";
         }
 
         return $return;
     }
+    /**
+     * Checks if a given array matches a template.
+     *
+     * @param array $data The data to test.
+     * @param array $expected An array with the same keys and structure as the expected data, but the values are either arrays or a string saying the type of data (from gettype()) that should be there.
+     * @return boolean Weather the data matched the expected layout and types.
+     */
     public static function validateData(array $data, array $expected):bool{
         foreach($expected as $expectedName => $expectedType){
             if(!isset($data[$expectedName])){
@@ -350,7 +401,17 @@ class data_types{
         return true;
     }
 }
+/**
+ * Download a file.
+ */
 class downloader{
+    /**
+     * Downloads a file and shows a progress bar.
+     *
+     * @param string $url The url to download from.
+     * @param string $outFile The file to save the data to.
+     * @return boolean Indicates success.
+     */
     public static function downloadFile(string $url, string $outFile):bool{
         mklog(1, 'Downloading file ' . basename($url));
 
@@ -393,7 +454,6 @@ class downloader{
             mklog(2, 'Download error: ' . curl_error($curl));
         }
 
-        @curl_close($curl);
         if(!@fclose($file)){
             mklog(2, 'Failed to close output file ' . $outFile);
         }
@@ -411,6 +471,10 @@ class downloader{
         }
     }
 }
+/**
+ * Use extension_enable and extension_ensure functions instead.
+ * @deprecated
+ */
 class extensions{
     public static function load(string $extensionName):bool{
         extension_enable($extensionName);
@@ -423,13 +487,25 @@ class extensions{
         return extension_ensure($extensionName);
     }
 }
+/**
+ * File management.
+ */
 class files{
     private static $progressStartTime = 0;
     private static $progressLastTotal = 0;
     private static $progressLocalStartTime = 0;
     private static $progressLocalCurrent = 0;
     private static $progressLastCurrent = 0;
-    public static function globRecursive(string $base, string $pattern, $flags = 0):array{
+
+    /**
+     * Similar to glob but also recursively calls glob on subfolders too.
+     *
+     * @param string $base The base path.
+     * @param string $pattern The pattern to test for inside.
+     * @param integer $flags glob() flags.
+     * @return array A list of all the files that were found, this does not include the sub folder names.
+     */
+    public static function globRecursive(string $base, string $pattern, int $flags=0):array{
         mklog(1, "Recursivly globbing folder " . $base);
 
         $flags = $flags & ~GLOB_NOCHECK;
@@ -455,6 +531,12 @@ class files{
     
         return $files;
     }
+    /**
+     * Makes sure a folder exists by creating it if it doesnt exist.
+     *
+     * @param string $dir The folder to check.
+     * @return boolean True if the folder already existed or exists now, false on failure.
+     */
     public static function ensureFolder(string $dir):bool{
         if(is_dir($dir)){
             return true;
@@ -466,6 +548,12 @@ class files{
             return self::mkFolder($dir);
         }
     }
+    /**
+     * Creates a folder.
+     *
+     * @param string $path The path of the folder to create, the folders parent does not need to exist to create it.
+     * @return boolean Indicates success.
+     */
     public static function mkFolder(string $path):bool{
         if(empty($path)){
             return false;
@@ -483,7 +571,16 @@ class files{
 
         return mkdir($path, 0777, true);
     }
-    public static function mkFile(string $path, string $data, string $fopenMode = "w", bool $overwrite=true):bool{
+    /**
+     * Creates a file, the parent directory does not need to exist to create the file.
+     *
+     * @param string $path The path of the file.
+     * @param string $data The data to put into the file.
+     * @param string $fopenMode What mode fopen should use.
+     * @param boolean $overwrite Weather to overwrite any existing file.
+     * @return boolean Indicates success.
+     */
+    public static function mkFile(string $path, string $data, string $fopenMode="w", bool $overwrite=true):bool{
         if(empty($path)){
             mklog(2, 'Cannot create a file with empty path');
             return false;
@@ -537,19 +634,36 @@ class files{
         
         return $return;
     }
+    /**
+     * Removes the last name in a file path.
+     *
+     * @param string $path The full file path.
+     * @return string The path without the last name.
+     */
     public static function getFileDir(string $path):string{
         $path = str_replace("/","\\",$path);
         $pos = strripos($path,"\\");
         $dir = substr($path,0,$pos);
         return $dir;
     }
+    /**
+     * Use basename instead.
+     *
+     * @param string $path
+     * @return string
+     */
     public static function getFileName(string $path):string{
-        $path = str_replace("/","\\",$path);
-        $pos = strripos($path,"\\");
-        $file = substr($path,$pos+1);
-        return $file;
+        return basename($path);
     }
-    public static function copyFile(string $pathFrom, string $pathTo, bool $showProgress=false):bool{
+    /**
+     * Copies a file from one place to another.
+     *
+     * @param string $pathFrom The source file.
+     * @param string $pathTo The destination file, the destination file's folder will be created if it doesnt already exist.
+     * @param boolean $showProgress Weather to show a progress bar, this changes the copy from copy() to many fread and fwrites.
+     * @return boolean Indicates success.
+     */
+    public static function copyFile(string $pathFrom, string $pathTo, bool $showProgress=true):bool{
         mklog(1, 'Copying file ' . $pathFrom . ' to ' . $pathTo);
 
         if(!is_file($pathFrom)){
@@ -632,13 +746,26 @@ class files{
             return copy($pathFrom, $pathTo);
         }
     }
-    public static function validatePath(string $path, bool $addquotes = false):string{
+    /**
+     * Makes all slashes backslashes and adds quotes if enabled and needed.
+     *
+     * @param string $path The path to be made valid for a windows command.
+     * @param boolean $addquotes Weather to add quotes if needed.
+     * @return string The converted path.
+     */
+    public static function validatePath(string $path, bool $addquotes=false):string{
         $path = str_replace("/","\\",$path);
         if(strpos($path," ") && $addquotes){
             $path = '"' . $path . '"';
         }
         return $path;
     }
+    /**
+     * Gets the extension from the last .xyz part of a path.
+     *
+     * @param string $fileName The path or name of the file.
+     * @return string The extension of the file.
+     */
     public static function getFileExtension(string $fileName):string{
         $ext = "";
         $pos = strripos($fileName,".");
@@ -647,8 +774,13 @@ class files{
         }
         return $ext;
     }
+    /**
+     * Returns an array which has lowercase file extensions as keys and mime types as values.
+     *
+     * @return array
+     */
     public static function fileExtensionMimeTypes():array{
-        return array(
+        return [
             "bmp"   => "image/bmp",
             "gif"   => "image/gif",
             "ico"   => "image/vnd.microsoft.icon",
@@ -729,8 +861,14 @@ class files{
             "xml"   => "application/xml",
             "xul"   => "application/vnd.mozilla.xul+xml",
             "zip"   => "application/zip",
-        );
+        ];
     }
+    /**
+     * Converts a number of bytes into a string with an appropriate unit.
+     *
+     * @param integer $bytes The number of bytes.
+     * @return string The formatted string.
+     */
     public static function formatBytes(int $bytes):string{
         $digits = strlen(round($bytes));
         $unit = "B ";
@@ -759,6 +897,16 @@ class files{
             return round($bytes) . $unit;
         }
     }
+    /**
+     * Makes a string that is a probress bar that can be printed to the command line.
+     *
+     * @param float $precentage The current percentage the bar should show.
+     * @param integer $barWidth The number of characters the bar should be made of.
+     * @param integer $totalBytes The total number of bytes, 0 to not show total.
+     * @param integer $bytesPerSecond The current speed to show, 0 to not show speed.
+     * @param integer $secondsLeft The number of seconds left, 0 to not show time left.
+     * @return string The progress bar string.
+     */
     public static function progressBar(float $precentage, int $barWidth=30, int $totalBytes=0, int $bytesPerSecond=0, int $secondsLeft=0):string{
         if($precentage > 100 || $precentage < 0 || $barWidth < 1 || $barWidth > 90){
             return "";
@@ -781,6 +929,17 @@ class files{
 
         return $string . "  \r";
     }
+    /**
+     * Repeatedly call this function and it will return a progress bar with calculated time left and speed.
+     *
+     * @param integer $total The total number of bytes in the operation.
+     * @param integer $current The current number of bytes done.
+     * @param integer $barWidth The width of the bar part.
+     * @param boolean $showTotal Weather to show the total number of bytes.
+     * @param boolean $showSpeed Weather to calculate the speed of current bytes change between calls.
+     * @param boolean $showEta Weather to calculate the time left between calls.
+     * @return string The current state of the progress bar.
+     */
     public static function progressTracker(int $total, int $current, int $barWidth=30, bool $showTotal=true, bool $showSpeed=true, bool $showEta=true):string{
         if($total < 1 || $current < 0 || $current > $total || $barWidth > 90){
             return "";
@@ -824,9 +983,21 @@ class files{
         return files::progressBar($precentage, $barWidth, ($showTotal ? $total : 0), $bytesPerSecond, $eta);
     }
 }
+/**
+ * Read and write json files.
+ */
 class json{
     private static $readCache = [];
 
+    /**
+     * Adds a value to an array inside a json file, this does not work with nested arrays.
+     *
+     * @param string $path The path to the json file.
+     * @param integer|string $entryKey The new key to add to the json file.
+     * @param mixed $entryValue The new value to put with the key.
+     * @param boolean $addToTop Weather to add it before the existing data or after.
+     * @return boolean Indicates success.
+     */
     public static function addToFile(string $path, int|string $entryKey, mixed $entryValue, bool $addToTop=false):bool{
         $existing = self::readFile($path);
         if($addToTop === true){
@@ -840,6 +1011,14 @@ class json{
         }
         return self::writeFile($path,$new,true);
     }
+    /**
+     * Reads a json file and returns the decoded values.
+     *
+     * @param string $path The path to the json file.
+     * @param boolean $createIfNonexistant Weather to create the file if it does not exist.
+     * @param mixed $expectedValue The default value to return and put into the file if it doesnt already exist.
+     * @return mixed The value stored in the json file or the default value.
+     */
     public static function readFile(string $path, bool $createIfNonexistant=false, mixed $expectedValue=[]):mixed{
         global $arguments; //json-read-cache-timeout
         if(!is_int($arguments['json-read-cache-timeout'])){
@@ -903,6 +1082,14 @@ class json{
 
         return $decoded;
     }
+    /**
+     * Writes a value into a json file.
+     *
+     * @param string $path The path to the json file.
+     * @param mixed $value The value to but into the json file.
+     * @param boolean $overwrite Weather to overwrite any existing file.
+     * @return boolean Indicates success.
+     */
     public static function writeFile(string $path, mixed $value, bool $overwrite=false):bool{
         mklog(0, 'Writing to file ' . $path);
 
@@ -922,17 +1109,31 @@ class json{
         return true;
     }
 }
+/**
+ * @deprecated
+ */
 class time{
+    /**
+     * Use time() instead.
+     * @deprecated
+     */
     public static function stamp(){
         return time();
     }
+    /**
+     * Use microtime(true) instead.
+     * @deprecated
+     */
     public static function millistamp(){
         return floor(microtime(true)*1000);
     }
 }
+/**
+ * @internal
+ */
 class timetest{
     public static function command($line):void{
-        $startTime = time::millistamp();
+        $startTime = microtime(true);
 
         $line = str_replace("\\","\\\\",$line);
 
@@ -940,14 +1141,32 @@ class timetest{
 
         echo "\nReturn: " . json_encode($return,JSON_PRETTY_PRINT) . "\n";
 
-        $endTime = time::millistamp();
-        echo "\nTime Taken: " . round(($endTime - $startTime)/1000,3) . " seconds.\n";
+        $endTime = microtime(true);
+        echo "\nTime Taken: " . round($endTime - $startTime,3) . " seconds.\n";
     }
 }
+/**
+ * Read and write text files.
+ */
 class txtrw{
+    /**
+     * Creates a text file.
+     *
+     * @param string $file The path to the file.
+     * @param string $content The content to put into the file.
+     * @param boolean $overwrite Weather to overwrite any existing file.
+     * @return boolean Indicates success.
+     */
     public static function mktxt(string $file, string $content, bool $overwrite=false):bool{
         return files::mkFile($file, $content, "w", $overwrite);
     }
+    /**
+     * Reads a text file.
+     *
+     * @param string $file The path to the file.
+     * @param boolean $createIfNonexistant Weather to create the file if it does not exist.
+     * @return string|false The contents of the file on success or false on failure.
+     */
     public static function readtxt(string $file, bool $createIfNonexistant=false):string|false{
         if(!is_file($file)){
             if($createIfNonexistant){
@@ -976,6 +1195,15 @@ class txtrw{
             }
         }
     }
+    /**
+     * Replace a specific line in a text file.
+     *
+     * @param string|array $input Either a list of lines or a path to a file.
+     * @param string $starting What the line to be replaced starts with.
+     * @param string $replacement The entire line replacement.
+     * @param array $comments A list of symbols where lines beginning with any of these will be skipped when looking for which line to replace.
+     * @return boolean|array If the input was a file path then a booleain indicating success will be returned, if the input was a list of lines, a list of lines will be returned.
+     */
     public static function replaceLineBeginingWith(string|array $input, string $starting, string $replacement, array $comments=['#','//']):bool|array{
         if(is_string($input)){
             if(!is_file($input)){
@@ -1040,8 +1268,18 @@ class txtrw{
         return $lines;
     }
 }
+/**
+ * Reading command line input.
+ */
 class user_input{
-    public static function await($newline = false, $returnArray = false):string|array{
+    /**
+     * Waits for the user to input something in the command line.
+     *
+     * @param boolean $newline Weather to output a newline for the user to type on.
+     * @param boolean $returnArray Weather to parse the inputted line using cli::parseLine().
+     * @return string|array The inputted string or the parseLine output.
+     */
+    public static function await($newline=false, $returnArray=false):string|array{
         if($newline){
             echo "\n";
         }
@@ -1049,10 +1287,15 @@ class user_input{
         $return = trim(fgets($GLOBALS['stdin']));
 
         if($returnArray){
-            $return = str_getcsv($return, ' ', '"', '\\');
+            $return = cli::parseLine($return);
         }
         return $return;
     }
+    /**
+     * Asks the user to input yes (y) or no (n).
+     *
+     * @return boolean Weather the input was yes.
+     */
     public static function yesNo():bool{
         $res = "";
         while(true){
@@ -1071,6 +1314,12 @@ class user_input{
     }
 }
 
+/**
+ * Enables an extension in php.ini config file. A restart of PHP-CLI is required to actually enable the extension after this is called.
+ *
+ * @param string $extension The extension to enable.
+ * @return boolean True if the config file was edited, false otherwise.
+ */
 function extension_enable(string $extension):bool{
     mklog(0, 'Enabling extension ' . $extension);
 
@@ -1087,6 +1336,12 @@ function extension_enable(string $extension):bool{
     mklog(1, 'Enabled extension ' . $extension . ' in php\php.ini, please restart PHP-CLI for the changes to take effect');
     return true;
 }
+/**
+ * Checks weather an extension is loaded, and calls extension_enable() if it is not allready loaded.
+ *
+ * @param string $extension The extension to check.
+ * @return boolean True if the extension was allready loaded, false otherwise.
+ */
 function extension_ensure(string $extension):bool{
     if(extension_loaded($extension)){
         return true;

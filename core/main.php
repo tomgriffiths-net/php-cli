@@ -7,10 +7,15 @@ mklog(1,'Took ' . round(microtime(true) - cli::info()['startTime'], 3) . ' secon
 
 cli::start();
 
+/**
+ * Version 103 - The main program and command line.
+ */
 class cli{
     private static $started = false;
     private static $aliases = [];
-
+    /**
+     * @internal
+     */
     public static function command($line):void{
         $lines = explode(" ", $line);
         if($lines[0] === "new"){
@@ -28,6 +33,9 @@ class cli{
         }
     }
 
+    /**
+     * @internal
+     */
     public static function start(){
         if(self::$started){
             return;
@@ -41,6 +49,13 @@ class cli{
             self::after();
         }
     }
+    /**
+     * Runs a command.
+     *
+     * @param string $line The command to run.
+     * @param boolean $captureOutput Weather to return the recorded echo's or not.
+     * @return boolean|string If captureOutput is false, a boolean indicating succcess will be returned, otherwise a string will be returned.
+     */
     public static function run(string $line, bool $captureOutput=false):bool|string{
         $return = false;
         if($line === "exit"){
@@ -93,6 +108,13 @@ class cli{
         
         return $return;
     }
+    /**
+     * Registers a command alias, this allows you to map a command to a longer one.
+     *
+     * @param string $alias The nickname for the command.
+     * @param string $command The command the alias gets replaced with.
+     * @return boolean Indicates success.
+     */
     public static function registerAlias(string $alias, string $command):bool{
         if(class_exists($alias) || isset(self::$aliases[$alias]) || $alias === "exit"){
             return false;
@@ -112,9 +134,14 @@ class cli{
         return true;
     }
 
+    /**
+     * Gets general info about the PHP-CLI install and some system information.
+     *
+     * @return array See readme.
+     */
     public static function info():array{
         return [
-            'version' => 102,
+            'version' => 103,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
             'pcDrive' => $_SERVER['SystemDrive'],
@@ -124,6 +151,15 @@ class cli{
             'phpVersion' => phpversion()
         ];
     }
+    /**
+     * Parses a command string into arguments, options and parameters.
+     * Inputted "words" can be quoted with double-quotes to stop spaces making it 2 words.
+     * Arguments are strings on their own, options are preceded with a "-" and are added to the options list if they exist,
+     * parameters are preceded with "--" and then take watever was behind them as the value, this is added to the params array and is keyed with the parameter name and has the parameter string value.
+     *
+     * @param string $line The line containing words.
+     * @return array The args, options, and params arrays.
+     */
     public static function parseLine(string $line):array{
         $words = str_getcsv($line, ' ', '"', '\\');
     

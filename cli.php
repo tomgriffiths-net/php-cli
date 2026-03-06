@@ -1,7 +1,7 @@
 <?php
 //Default startup arguments, uncommnt them to set them.
 
-//$fileArguments['verbose-logging'] = true;
+$fileArguments['verbose-logging'] = false;
 //$fileArguments['use-file-as-input'] = "<Path to semi-existant single-line text file>";
 //$fileArguments['no-loop'] = true;
 //$fileArguments['command'] = "<Your command here>";

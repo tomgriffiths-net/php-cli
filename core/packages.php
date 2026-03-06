@@ -8,6 +8,10 @@ class pkgmgr{
     private static $packageInitCount = 0;
     private static $packages = [];
     private static $preloadedPackages = ["self","cli","cli_formatter","cmd","commandline_list","data_types","downloader","extensions","files","json","pkgmgr","time","timetest","txtrw","user_input"];
+
+    /**
+     * @internal description
+     */
     public static function command($line):void{
         $lines = explode(" ",$line);
         if($lines[0] === "list"){
@@ -111,6 +115,9 @@ class pkgmgr{
             echo "pkgmgr: Command not found\n";
         }
     }
+    /**
+     * @internal
+     */
     public static function init():void{
         if(!is_dir('packages')){
             if(!mkdir('packages',0777,true)){
@@ -129,12 +136,18 @@ class pkgmgr{
         
         mklog(1,'Loaded ' . self::$packageCount . ' packages, ' . self::$packageInitCount . ' initialized');
     }
+
+    /**
+     * Loads a package.
+     *
+     * @param string $package The id of the package to be loaded.
+     * @return boolean Indicates success.
+     */
     public static function loadPackage(string $package):bool{
         if(!self::validatePackageId($package)){
             mklog(2, 'Invalid package id');
             return false;
         }
-        
         
         if(in_array($package, self::$preloadedPackages)){
             return true;
@@ -181,21 +194,48 @@ class pkgmgr{
             return false;
         }
 
+        if($GLOBALS['arguments']['check-syntax']){
+            if(!self::isPhpFileSyntaxOk($info['dir'] . "\\main.php")){//slow
+                mklog(2, "The package " . $package . " has invalid syntax");
+            }
+        }
+
         include_once $info['dir'] . "\\main.php";
         self::$packageCount++;
-        if(method_exists($info['id_name'],"init")){
-            mklog(1,'Running init for package ' . $info['name']);
-            $info['id_name']::init();
-            self::$packageInitCount++;
-        }
         self::$packages[$package] = $info;
+
+        if(method_exists($package,"init")){
+            mklog(1,'Running init for package ' . $info['name']);
+            
+            try{
+                $package::init();
+                self::$packageInitCount++;
+            }
+            catch(Throwable $throwable){
+                mklog(2, "Failed to run init for package " . $package . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
+                return false;
+            }
+            
+        }
 
         return true;
     }
+    /**
+     * Checks if a string could be a valid package id, this does not check package existance.
+     *
+     * @param string $packageId The string to be tested.
+     * @return boolean True if the string is valid, false otherwise.
+     */
     public static function validatePackageId(string $packageId):bool{
         return (preg_match("/^[a-zA-Z0-9_]+$/",$packageId) === 1);
     }
-    public static function validatePackageInfo($info):bool{
+    /**
+     * Checks if some package info is valid.
+     *
+     * @param array $info The array to be checked.
+     * @return boolean Weather the array is valid package info.
+     */
+    public static function validatePackageInfo(array $info):bool{
         if(!isset($info['id_name'])){
             mklog(0, 'Package does not have id_name');
             return false;
@@ -239,18 +279,38 @@ class pkgmgr{
 
         return true;
     }
+    /**
+     * Gets the dependencies of a pakage.
+     *
+     * @param array $packageInfo The package info.
+     * @return array|false The dependencies on success or false on failure.
+     */
     public static function getPackageDependencies(array $packageInfo):array|false{
         if(self::validatePackageInfo($packageInfo)){
             return $packageInfo['dependencies'];
         }
         return false;
     }
+    /**
+     * Checks weather a package exists.
+     *
+     * @param string $packageId The id to check for.
+     * @param boolean $online Weather to check online or local.
+     * @return boolean Weather the package exists.
+     */
     public static function doesPackageExist(string $packageId, bool $online):bool{
-        if(self::getPackageInfo($packageId,$online) !== false){
+        if(self::getPackageInfo($packageId, $online) !== false){
             return true;
         }
         return false;
     }
+    /**
+     * Gets a packages package info, see readme for package info.
+     *
+     * @param string $packageId The if of the package.
+     * @param boolean $online Weather to get the info from online or locally.
+     * @return array|false The package info on success or false on failure.
+     */
     public static function getPackageInfo(string $packageId, bool $online):array|false{
         if(!self::validatePackageId($packageId)){
             mklog(2, 'Invalid package name ' . $packageId);
@@ -295,6 +355,13 @@ class pkgmgr{
             return $packageInfo;
         }
     }
+    /**
+     * Checks online for a specific package versions package info.
+     *
+     * @param string $packageId The id of the package.
+     * @param integer $version The version to check.
+     * @return array|false The package info on success or false on failure.
+     */
     public static function getPackageVersionInfo(string $packageId, int $version):array|false{
         if(!self::validatePackageId($packageId)){
             mklog(2, 'Unable get version info for invalid package id ' . $packageId);
@@ -314,6 +381,15 @@ class pkgmgr{
 
         return $result['data'];
     }
+    /**
+     * Downloads a package.
+     *
+     * @param string $packageId The id of the package to download.
+     * @param integer|boolean $version The version to download or false, which makes it download the latest version.
+     * @param boolean $getDependencies Weather to also download the packages dependencies.
+     * @param boolean $load Weather to load the package after it has been downloaded.
+     * @return boolean Indicates success.
+     */
     public static function downloadPackage(string $packageId, int|bool $version=false, bool $getDependencies=true, bool $load=true):bool{
         if(!self::validatePackageId($packageId)){
             mklog(2, 'Invalid package id ' . $packageId);
@@ -459,6 +535,11 @@ class pkgmgr{
         mklog(1, 'Please restart PHP-CLI for the update to apply');
         return true;
     }
+    /**
+     * Updates all the packages.
+     *
+     * @return boolean Indicates success.
+     */
     public static function updatePackages():bool{
         $return = false;
 
@@ -481,6 +562,13 @@ class pkgmgr{
         }
         return $return;
     }
+    /**
+     * Reads the main.php file in a package and checks for what classes it uses.
+     *
+     * @param string $packageId The id of the package.
+     * @param boolean $getLatestVersions Weather to check the latest versions of the dependencies online.
+     * @return array|false An estimation of the dependencies on success or false on failure.
+     */
     public static function getPackageFileDependencies(string $packageId, bool $getLatestVersions=true):array|false{
         if(!self::validatePackageId($packageId)){
             return false;
@@ -562,6 +650,11 @@ class pkgmgr{
 
         return $dependencies;
     }
+    /**
+     * Gets all the loaded packages and their versions.
+     *
+     * @return array
+     */
     public static function getLoadedPackages():array{
         $return = [];
         foreach(self::$packages as $packageId => $packageInfo){
@@ -569,6 +662,11 @@ class pkgmgr{
         }
         return $return;
     }
+    /**
+     * Gets the download url for the latest thread safe x64 windows build of php from windows.php.net.
+     *
+     * @return string|false The url of the latest zip or false on failure.
+     */
     public static function getLatestPhpUrl():string|false{
         $data = json::readFile('https://windows.php.net/downloads/releases/releases.json');
 
@@ -613,5 +711,16 @@ class pkgmgr{
         }
 
         return 'https://windows.php.net/downloads/releases/' . $data['zip']['path'];
+    }
+    /**
+     * Checks the syntax of a php file with php -l.
+     *
+     * @param string $file The php file to be checked.
+     * @return boolean Weather the php file has valid syntax.
+     */
+    public static function isPhpFileSyntaxOk(string $file):bool{
+        $output = shell_exec("php\php.exe -l " . escapeshellarg($file) . " 2>&1");
+
+        return str_contains($output, 'No syntax errors');
     }
 }

@@ -54,7 +54,8 @@ $arguments = (function(){
         'no-loop' => false,
         'command' => false,
         'json-read-cache-timeout' => 1,
-        'json-url-read-cache-timeout' => 5
+        'json-url-read-cache-timeout' => 5,
+        'check-syntax' => false
     ];
 
     $lineArguments = [];
@@ -62,19 +63,21 @@ $arguments = (function(){
     $argvCount = count($argv);
     if($argvCount %2 === 0){
         //Ignore arguments if even number of arguments (extra arguments number is arguments -1 as first argument is filename)
-        mklog(2, 'Missmach in arguments provided via commandline, ignoring all');
+        mklog(2, 'Missmach in arguments provided via commandline, ignoring last item');
+
+        //Pretend odd item does not exist
+        $argvCount--;
     }
-    else{
-        //Go through each provided command line argument
-        for($i = 1; $i < $argvCount; $i++){
-            //Pair up every other argument to the argument after it e.g. <arg1> <arg1value> <arg2> <arg2value>
-            $lineArguments[$argv[$i]] = $argv[$i+1];
-            $i++;
-        }
-        //Go through every command line argument
-        foreach($lineArguments as $lineArgumentName => $lineArgumentValue){
-            $lineArguments[$lineArgumentName] = data_types::convert_string($lineArgumentValue);
-        }
+    
+    //Go through each provided command line argument
+    for($i = 1; $i < $argvCount; $i++){
+        //Pair up every other argument to the argument after it e.g. <arg1> <arg1value> <arg2> <arg2value>
+        $lineArguments[$argv[$i]] = $argv[$i+1];
+        $i++;
+    }
+    //Go through every command line argument
+    foreach($lineArguments as $lineArgumentName => $lineArgumentValue){
+        $lineArguments[$lineArgumentName] = data_types::convert_string($lineArgumentValue);
     }
 
     //Now there are three argument arrays that will be overritten by the array after it: defaultArguments, fileArguments, lineArguments
@@ -98,7 +101,7 @@ $arguments = (function(){
         //Log stuff
         if(verboseLogging()){
             if(is_bool($arguments[$defaultArgumentName])){
-                $currentArgumentLogValue = data_types::boolean_to_string($arguments[$defaultArgumentName]);
+                $currentArgumentLogValue = $arguments[$defaultArgumentName] ? "true" : "false";
             }
             else{
                 $currentArgumentLogValue = $arguments[$defaultArgumentName];
@@ -127,6 +130,8 @@ $arguments = (function(){
     return $arguments;
 })();
 
+unset($fileArguments);
+
 //////////
 
 mklog(1,'Loading basic CLI interface');
@@ -148,6 +153,16 @@ if(!$stdin){
 
 require 'main.php';
 
+/**
+ * Makes a log entry
+ *
+ * @param integer $type Severity from 0 to 3 (inclusive) where 0 is for verbose messages, 1 is general, 2 is warning, and 3 is error.
+ * Error logs will pause the program for 5 seconds so the user can read the scary red text.
+ * @param string $message The message to be logged.
+ * @param string $formattedMessage Optionally a formatted version of the message that will be printed instead of the original message.
+ * The original message will still be saved.
+ * @return void If mklog has an issue it will shout at the user.
+ */
 function mklog(int|string $type, string $message, string|bool $formattedMessage=''):void{
     //Convert old to new format if detected
     if(!is_int($type)){
@@ -235,6 +250,11 @@ function mklog(int|string $type, string $message, string|bool $formattedMessage=
         sleep(2);
     }
 }
+/**
+ * Gets weather verbose-logging is enabled.
+ *
+ * @return boolean Weather verbose-logging is enabled.
+ */
 function verboseLogging():bool{
     if(isset($GLOBALS['arguments']['verbose-logging'])){
         if($GLOBALS['arguments']['verbose-logging']){
