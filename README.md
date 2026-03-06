@@ -1,6 +1,8 @@
 # PHP-CLI
 PHP-CLI is a command line application that can have packages installed into it.
 
+See https://www.tomgriffiths.net/php-cli/docs/namespace-none.html for code docs.
+
 # Notices
 You are able to edit the code but I am not responsible if it breaks after doing so. This software comes as is. There is no warranty.
 
