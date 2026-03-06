@@ -1,6 +1,9 @@
 <?php
 pkgmgr::init();
 
+/**
+ * The package manager.
+ */
 class pkgmgr{
     private static $downloadSite = 'https://www.tomgriffiths.net';
     private static $downloadSiteFiles = 'https://files.tomgriffiths.net';
