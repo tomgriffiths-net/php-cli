@@ -10,12 +10,12 @@ class pkgmgr{
     private static $packageCount = 0;
     private static $packageInitCount = 0;
     private static $packages = [];
-    private static $preloadedPackages = ["self","cli","cli_formatter","cmd","commandline_list","data_types","downloader","extensions","files","json","pkgmgr","time","timetest","txtrw","user_input"];
+    private static $preloadedPackages = ["self","cli","pkgmgr","extensions","inimgmt","linuxcmd","cli_formatter","cmd","commandline_list","data_types","downloader","files","json","time","timetest","txtrw","user_input"];
 
     /**
      * @internal description
      */
-    public static function command($line):void{
+    public static function command(string $line):void{
         $lines = explode(" ",$line);
         if($lines[0] === "list"){
             $columnNames["Package ID"] = 25;
@@ -79,40 +79,27 @@ class pkgmgr{
         }
         elseif($lines[0] === "update-core"){
             mklog('general','Running Update',false);
-            files::ensureFolder("temp\\coreupdates");
-            if(!downloader::downloadFile("https://files.tomgriffiths.net/php-cli/updates/latest.zip","temp\\coreupdates\\latest.zip")){
+            files::ensureFolder("temp/coreupdates");
+            if(!downloader::downloadFile("https://files.tomgriffiths.net/php-cli/updates/latest.zip","temp/coreupdates/latest.zip")){
                 echo "Failed to download update file\n";
-                goto end;
+                return;
             }
 
             $zip = new ZipArchive;
-            $result = $zip->open("temp\\coreupdates\\latest.zip");
+            $result = $zip->open("temp/coreupdates/latest.zip");
             if($result === true){
-                $zip->extractTo("temp\\coreupdates\\latest");
+                $zip->extractTo(".");
                 $zip->close();
+                unlink("temp/coreupdates/latest.zip");
             }
             else{
                 echo "Failed to unzip update file\n";
-                goto end;
+                @unlink("temp/coreupdates/latest.zip");
+                return;
             }
 
-            $updateFiles = glob("temp\\coreupdates\\latest");
-            foreach($updateFiles as $file){
-                if(is_file($file)){
-                    files::copyFile($file,files::getFileName($file));
-                    unlink($file);
-                }
-            }
-
-            $robocopyFrom = files::validatePath(getcwd() . "\\temp\\coreupdates\\latest\\core",true);
-            $robocopyTo = files::validatePath(getcwd() . "\\core",true);
-            cmd::run('robocopy ' . $robocopyFrom . ' ' . $robocopyTo . ' /e /v /mir');
-            
-            cmd::run('rmdir ' . files::validatePath(getcwd() . "\\temp\\coreupdates",true) . ' /s /q');
-
-            cmd::newWindow('"' . getcwd() . '\php\php.exe" "' . getcwd() . '\cli.php" after-update true"');
+            cli::command("reload");
             exit;
-            end:
         }
         else{
             echo "pkgmgr: Command not found\n";
@@ -131,8 +118,8 @@ class pkgmgr{
         foreach(glob('packages/*') as $dir){
             $package = substr($dir,strripos($dir,"/")+1);
             if(!class_exists($package)){//Other packages may have loaded package as a dependency
-                if(self::loadPackage($package) !== true){
-                    mklog(2,'Unable to load package ' . $package,false);
+                if(!self::loadPackage($package)){
+                    mklog(3,'Unable to load package ' . $package,false);
                 }
             }
         }
@@ -193,17 +180,17 @@ class pkgmgr{
 
         mklog(0, 'Loading package ' . $package);
 
-        if(!is_file($info['dir'] . "\\main.php")){
+        if(!is_file($info['dir'] . "/main.php")){
             return false;
         }
 
         if($GLOBALS['arguments']['check-syntax']){
-            if(!self::isPhpFileSyntaxOk($info['dir'] . "\\main.php")){//slow
+            if(!self::isPhpFileSyntaxOk($info['dir'] . "/main.php")){//slow
                 mklog(2, "The package " . $package . " has invalid syntax");
             }
         }
 
-        include_once $info['dir'] . "\\main.php";
+        include_once $info['dir'] . "/main.php";
         self::$packageCount++;
         self::$packages[$package] = $info;
 
@@ -348,7 +335,7 @@ class pkgmgr{
                 return false;
             }
 
-            $packageInfo['dir'] = getcwd() . '\\packages\\' . $packageId;
+            $packageInfo['dir'] = getcwd() . '/packages/' . $packageId;
 
             if(!self::validatePackageInfo($packageInfo)){
                 mklog(2,'The package ' . $packageId . ' has invalid data');
@@ -442,7 +429,7 @@ class pkgmgr{
         }
 
         if(is_dir('packages/' . $packageId . '/files')){
-            if(!cmd::run('rmdir "packages\\' . $packageId . '\\files" /S /Q')){
+            if(!cmd::run('rmdir "packages/' . $packageId . '/files" /S /Q')){
                 mklog(2,'Failed to remove old files dir for package ' . $packageId);
             }
         }
@@ -506,7 +493,7 @@ class pkgmgr{
             }
         }
 
-        files::ensureFolder('packages\\' . $packageId);
+        files::ensureFolder('packages/' . $packageId);
 
         mklog(0, "Unpacking " . $packageId);
         $zip = new ZipArchive;
@@ -515,13 +502,13 @@ class pkgmgr{
             mklog(2, 'Failed to open package zip file ' . $downloadFile);
             return false;
         }
-        if(!$zip->extractTo('packages\\' . $packageId)){
-            mklog(2, 'Failed to extract contents from package zip file to packages\\' . $packageId);
+        if(!$zip->extractTo('packages/' . $packageId)){
+            mklog(2, 'Failed to extract contents from package zip file to packages/' . $packageId);
             return false;
         }
         $zip->close();
 
-        if(!json::writeFile('packages\\' . $packageId . '\\information.json',$info2,true)){
+        if(!json::writeFile('packages/' . $packageId . '/information.json',$info2,true)){
             mklog(2,'Unable to write information file for package ' . $packageId);
             return false;
         }
@@ -671,7 +658,7 @@ class pkgmgr{
      * @return string|false The url of the latest zip or false on failure.
      */
     public static function getLatestPhpUrl():string|false{
-        $data = json::readFile('https://windows.php.net/downloads/releases/releases.json');
+        $data = json::readFile('https://downloads.php.net/~windows/releases/releases.json');
 
         if(!is_array($data)){
             mklog(2,'Unable to read php releases information');
@@ -713,7 +700,7 @@ class pkgmgr{
             return false;
         }
 
-        return 'https://windows.php.net/downloads/releases/' . $data['zip']['path'];
+        return 'https://downloads.php.net/~windows/releases/' . $data['zip']['path'];
     }
     /**
      * Checks the syntax of a php file with php -l.
@@ -722,7 +709,8 @@ class pkgmgr{
      * @return boolean Weather the php file has valid syntax.
      */
     public static function isPhpFileSyntaxOk(string $file):bool{
-        $output = shell_exec("php\php.exe -l " . escapeshellarg($file) . " 2>&1");
+
+        $output = shell_exec("php -l " . escapeshellarg($file) . " 2>&1");
 
         return str_contains($output, 'No syntax errors');
     }

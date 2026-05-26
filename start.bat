@@ -1,51 +1,64 @@
 @echo off
+setlocal enabledelayedexpansion
 
 cd /D "%~dp0"
+set LAUNCHER_SCRIPT=%~nx0
 
 :retry
 
 if exist cli.php (
     
-    if exist php\php.exe (
+    where php >nul 2>&1
+    if !errorlevel! == 0 (
 
-        php\php.exe cli.php
+        php core\updateini.php
+
+        if !errorlevel! neq 0 (
+            echo Error: Failed to set up php.ini settings.
+            pause
+            goto end
+        )
+
+        php cli.php %*
+
+        set code=!errorlevel!
+        if "!code!"=="5" (
+            echo Restarting...
+            goto retry
+        )
+        echo Exit code: !code!
+
+        goto end
 
     ) else (
 
-        echo Downloading custom ini PHP
-        powershell -command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -OutFile php.zip -Uri 'https://files.tomgriffiths.net/php-cli/files/php-8.4.12-Win32-vs17-x64-CustomIniV3.zip'"
-        
-        if not exist php.zip (
-            echo Failed to download PHP
+        echo Installing PHP 8.5
+
+        powershell -c "& ([ScriptBlock]::Create((irm 'https://www.php.net/include/download-instructions/windows.ps1'))) -Version 8.5"
+
+        if !errorlevel! neq 0 (
+            echo Error: PHP installation failed.
             pause
-            exit
+            goto end
         )
 
-        echo Installing PHP
-        powershell -command "$ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path php.zip -DestinationPath ./php"
-
-        if not exist php\php.exe (
-            echo Failed to unzip PHP
-            pause
-            exit
-        )
-        
-        del php.zip
-        echo Launching CLI
-        php\php.exe cli.php
+        echo PHP installed. Please re-run this script.
+        pause
+        goto end
 
     )
 
 ) else (
 
-    echo Downloading PHP-CLI
+    echo Downloading PHP-CLI Zip
     
     powershell -command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -OutFile latest.zip -Uri https://files.tomgriffiths.net/php-cli/updates/latest.zip"
     
-    echo Installing PHP-CLI
+    echo Unzipping PHP-CLI
     powershell -command "$ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path latest.zip -DestinationPath ."
     del latest.zip
     
-    goto retry
-
 )
+
+goto retry
+:end

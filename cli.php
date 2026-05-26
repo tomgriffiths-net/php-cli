@@ -6,13 +6,6 @@ $fileArguments['verbose-logging'] = false;
 //$fileArguments['no-loop'] = true;
 //$fileArguments['command'] = "<Your command here>";
 
-
-//Ensure cli usage
-if(php_sapi_name() !== "cli"){
-    echo "This script can only be run from the command line.\n";
-    exit;
-}
-
 //Ensure correct working directory
 chdir(dirname(__FILE__));
 

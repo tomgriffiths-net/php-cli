@@ -1,17 +1,21 @@
 <?php
-//Required checks
-if($_SERVER['OS'] !== "Windows_NT"){
-    echo "ERROR: This program can only run on modern Windows\n";
-    sleep(10);
+if(php_sapi_name() !== "cli"){
+    echo "This script can only be run from the command line.\n";
     exit;
 }
+
 if(PHP_VERSION_ID < 80000){
     echo "ERROR: PHP Version 8 or newer is required to run PHP-CLI\n";
     sleep(10);
     exit;
 }
-if(PHP_VERSION_ID < 80301){
-    echo "Warning: PHP Version 8.3.1 or newer is recommended\n";
+if(PHP_VERSION_ID < 80400){
+    echo "Warning: PHP Version 8.4 or newer is recommended\n";
+}
+
+if(!in_array(PHP_OS_FAMILY, ['Windows','Linux'])){
+    echo "This can only be run on Windows and some Linux distributions.\n";
+    exit;
 }
 
 //Logs setup
@@ -20,8 +24,8 @@ if(!is_dir('logs')){
         echo "Error: Unable to create logs directory\n";
     }
 }
-if(is_file('logs\\latest.log')){
-    if(!unlink('logs\\latest.log')){
+if(is_file('logs/latest.log')){
+    if(!unlink('logs/latest.log')){
         echo "Warning: Unable to delete old latest.log\n";
     }
 }
@@ -29,15 +33,14 @@ if(is_file('logs\\latest.log')){
 mklog(1,'Starting');
 
 mklog(1,'Loading resources');
-require 'resources.php';
-//Loaded: cli_formatter,cmd,commandline_list,data_types,downloader,extensions,files,json,time,txtrw,user_input
+require_once 'resource2.php';
 
-mklog(0,'Reading start arguments');
+mklog(1,'Reading start arguments');
 
 if(!isset($fileArguments)){
     $fileArguments = [];
 }
-if(!is_array($fileArguments)){
+if(!is_array($fileArguments) || array_is_list($fileArguments)){
     mklog(2,'Unknown fileArguments configuration, ignoring all');
     $fileArguments = [];
 }
@@ -55,7 +58,8 @@ $arguments = (function(){
         'command' => false,
         'json-read-cache-timeout' => 1,
         'json-url-read-cache-timeout' => 5,
-        'check-syntax' => false
+        'check-syntax' => false,
+        'sleep-on-error' => 0
     ];
 
     $lineArguments = [];
@@ -134,24 +138,12 @@ unset($fileArguments);
 
 //////////
 
-mklog(1,'Loading basic CLI interface');
-mklog(0,'Setting window title');
-exec('title PHP-CLI: ' . getcwd());
-
-mklog(0,'Loading stdin and stdout');
-$stdout = fopen("php://stdout","w");
-if(!$stdout){
-    mklog(2,'Unable to load stdout');
-}
-
-$stdin = fopen("php://stdin","r");
-if(!$stdin){
-    mklog(3,'Unable to load stdin');
-}
+echo "\033]0;PHP-CLI: " . getcwd() . "\007";
 
 //////////
 
-require 'main.php';
+mklog(1, "Loading main");
+require_once 'main.php';
 
 /**
  * Makes a log entry
@@ -166,7 +158,6 @@ require 'main.php';
 function mklog(int|string $type, string $message, string|bool $formattedMessage=''):void{
     //Convert old to new format if detected
     if(!is_int($type)){
-
         mklog(0, 'The following log used an outdated version of mklog()');
 
         $type = substr(strtolower($type), 0, 1);
@@ -220,7 +211,7 @@ function mklog(int|string $type, string $message, string|bool $formattedMessage=
         }
 
         //Write files
-        $stream = fopen('logs\\latest.log','a');
+        $stream = fopen('logs/latest.log','a');
         if(!$stream){
             echo "Error: Unable to open latest.log\n";
         }
@@ -231,7 +222,7 @@ function mklog(int|string $type, string $message, string|bool $formattedMessage=
             echo "Error: Unable to save latest.log\n";
         }
 
-        $stream = fopen('logs\\log-' . date("Y-m") . '.txt','a');
+        $stream = fopen('logs/log-' . date("Y-m") . '.txt','a');
         if(!$stream){
             echo "Error: Unable to open logs file\n";
         }
@@ -244,10 +235,12 @@ function mklog(int|string $type, string $message, string|bool $formattedMessage=
     }
 
     if($type === 3){
-        if($cliFormatterExists){
+        if(isset($cliFormatterExists) && $cliFormatterExists){
             cli_formatter::ding();
         }
-        sleep(2);
+        if($GLOBALS['arguments']['sleep-on-error'] > 0){
+            sleep($GLOBALS['arguments']['sleep-on-error']);
+        }
     }
 }
 /**
@@ -267,4 +260,125 @@ function verboseLogging():bool{
         }
     }
     return false;
+}
+/**
+ * Returns a shell ready arguments string to preserve start arguments when restarting the program.
+ *
+ * @return string The shell escaped arguments.
+ */
+function argsString():string{
+    global $argv;
+    return implode(' ', array_map('escapeshellarg', array_slice($argv, 1)));
+}
+
+/**
+ * Gets info on the environment php-cli is running in. (ClaudeAI and ChatGPT helped, mostly works)
+ *
+ * @return array An array of booleans with string keys; windows, linux, desktop, headless, remote_desktop, ssh, modern_terminal, compat_layer, tty, interactive, daemon_or_cron.
+ */
+function getEnvironment():array{
+    $isWindows = PHP_OS_FAMILY === 'Windows';
+    $isLinux   = PHP_OS_FAMILY === 'Linux';
+
+    // Unified environment accessor
+    $env = static fn(string $key): string|false => getenv($key);
+
+    // --- Detect TTY / interactive console ---
+    $hasTty = false;
+    if(function_exists('stream_isatty')){
+        $hasTty = @stream_isatty(STDIN) || @stream_isatty(STDOUT);
+    }
+    elseif(function_exists('posix_isatty')){
+        $hasTty = @posix_isatty(STDIN) || @posix_isatty(STDOUT);
+    }
+
+    // --- Shared checks ---
+    $isSSH = !empty($env('SSH_CLIENT')) || !empty($env('SSH_TTY'));
+
+    // --- Defaults ---
+    $isDesktop        = false;
+    $isRemoteDesktop  = false;
+    $isModernTerminal = false;
+    $isCompatLayer    = false;
+
+    if($isWindows){
+        // CLIENTNAME is far more reliable than SESSIONNAME
+        // Local sessions normally report "Console"
+        // RDP sessions report remote client hostname
+        $clientName = $env('CLIENTNAME');
+        $isRemoteDesktop = !empty($clientName) && strtoupper($clientName) !== 'CONSOLE';
+
+        // If we have a TTY and are not running through SSH,
+        // assume an interactive desktop session
+        $isDesktop = $hasTty && !$isSSH;
+
+        // Modern terminal detection
+        $isModernTerminal =
+            !empty($env('WT_SESSION')) ||      // Windows Terminal
+            !empty($env('WT_PROFILE_ID')) ||
+            !empty($env('ConEmuPID')) ||       // ConEmu
+            !empty($env('TERM_PROGRAM')) ||    // VSCode/etc
+            !empty($env('ANSICON'));
+
+        // Compatibility / subsystem layers
+        $isCompatLayer =
+            !empty($env('MSYSTEM')) ||         // MSYS2 / Git Bash
+            !empty($env('CYGWIN'));
+    
+    }
+    elseif($isLinux){
+
+        $hasDisplay = !empty($env('DISPLAY')) || !empty($env('WAYLAND_DISPLAY'));
+
+        $hasDesktopSession = !empty($env('DESKTOP_SESSION')) || !empty($env('XDG_CURRENT_DESKTOP')) || !empty($env('GNOME_DESKTOP_SESSION_ID')) || !empty($env('KDE_FULL_SESSION'));
+
+        $isDesktop = $hasDisplay && $hasDesktopSession && !$isSSH;
+
+        // Remote desktop detection
+        $isRemoteDesktop = !empty($env('XRDP_SESSION')) || !empty($env('X2GO_SESSION'));
+
+        // Modern terminal detection
+        $term        = $env('TERM');
+        $termProgram = $env('TERM_PROGRAM');
+
+        $isModernTerminal = !empty($env('VTE_VERSION')) || !empty($termProgram) ||
+            in_array(
+                $term,
+                [
+                    'xterm-256color',
+                    'screen-256color',
+                    'tmux-256color',
+                    'alacritty',
+                    'wezterm',
+                ],
+                true
+            );
+
+        // Wine / WSL / compatibility layers
+        $isCompatLayer = !empty($env('WINEPREFIX')) || file_exists('/proc/sys/fs/binfmt_misc/WSLInterop');
+        
+    }
+    else{
+        $isDesktop = $hasTty && !$isSSH;
+    }
+
+    return [
+
+        // Platform
+        'windows'         => $isWindows,
+        'linux'           => $isLinux,
+
+        // Environment type
+        'desktop'         => $isDesktop,
+        'headless'        => !$isDesktop,
+        'remote_desktop'  => $isRemoteDesktop,
+        'ssh'             => $isSSH,
+        'modern_terminal' => $isModernTerminal,
+        'compat_layer'    => $isCompatLayer,
+
+        // TTY / interactivity
+        'tty'             => $hasTty,
+        'interactive'     => $hasTty && !$isSSH,
+        'daemon_or_cron'  => !$hasTty && !$isSSH,
+    ];
 }

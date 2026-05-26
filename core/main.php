@@ -1,14 +1,14 @@
 <?php
 mklog(1,'Loading packages');
-require 'packages.php';
+require_once 'packages.php';
 //packages loaded
 
-mklog(1,'Took ' . round(microtime(true) - cli::info()['startTime'], 3) . ' seconds to start');
+mklog(1,'Took ' . round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3) . ' seconds to start');
 
 cli::start();
 
 /**
- * Version 103 - The main program and command line.
+ * The main program and command line.
  */
 class cli{
     private static $started = false;
@@ -16,14 +16,20 @@ class cli{
     /**
      * @internal
      */
-    public static function command($line):void{
+    public static function command(string $line):void{
         $lines = explode(" ", $line);
         if($lines[0] === "new"){
-            cmd::newWindow("php\php cli.php " . substr($line,4));
+            cmd::newWindow(cmd::startScript() . " " . substr($line,4));
         }
         elseif($lines[0] === "reload"){
-            cmd::newWindow("php\php cli.php");
-            exit;
+            $cmd = cmd::startScript() . " " . argsString();
+            if(getEnvironment()['desktop']){
+                cmd::newWindow($cmd);
+                exit;
+            }
+            else{
+                exit(5);//exit code 5 signals the start script to restart php
+            }
         }
         elseif($lines[0] === "clear"){
             cli_formatter::clear();
@@ -141,14 +147,15 @@ class cli{
      */
     public static function info():array{
         return [
-            'version' => 103,
+            'version' => 104,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
-            'pcDrive' => $_SERVER['SystemDrive'],
-            'cpuThreads' => $_SERVER['NUMBER_OF_PROCESSORS'],
-            'cpuType' => $_SERVER['PROCESSOR_ARCHITECTURE'],
+            'cpuThreads' => (PHP_OS_FAMILY === 'Linux' ? (int) shell_exec('nproc') : $_SERVER['NUMBER_OF_PROCESSORS']),
             'phpVersionNumeric' => PHP_VERSION_ID,
-            'phpVersion' => phpversion()
+            'phpVersion' => phpversion(),
+            'osType' => PHP_OS_FAMILY,
+            'osVersion' => php_uname('r'),
+            'osBuild' => php_uname('v')
         ];
     }
     /**
@@ -216,7 +223,6 @@ class cli{
             }
         }
         else{
-            echo ">";
             $line = user_input::await();
         }
 
