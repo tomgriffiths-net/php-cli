@@ -147,7 +147,7 @@ class cli{
      */
     public static function info():array{
         return [
-            'version' => 104,
+            'version' => 105,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
             'cpuThreads' => (PHP_OS_FAMILY === 'Linux' ? (int) shell_exec('nproc') : $_SERVER['NUMBER_OF_PROCESSORS']),

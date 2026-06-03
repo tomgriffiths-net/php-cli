@@ -18,6 +18,13 @@ $extensions = [
     'zip'
 ];
 
+if(PHP_OS_FAMILY === 'Linux'){
+    $extensions[] = 'posix';
+}
+else{
+    
+}
+
 /////
 
 if(!in_array(PHP_OS_FAMILY, ['Windows','Linux'])){

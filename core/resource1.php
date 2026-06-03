@@ -1,6 +1,15 @@
 <?php
+/**
+ * Extension management.
+ */
 class extensions{
     //Windows
+    /**
+     * WINDOWS ONLY - Gets an extensions zip url from pecl.php.net.
+     *
+     * @param string $extension The name of the extension on pecl.
+     * @return string|null The url on success or null on failure.
+     */
     public static function windowsPeclUrl(string $extension):?string{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
             mklog2(3, "Invalid extension name $extension");
@@ -33,6 +42,13 @@ class extensions{
 
         return $url;
     }
+    /**
+     * WINDOWS ONLY - Downloads and unzips a pecl.php.net extension.
+     *
+     * @param string $extension the pecl extension name.
+     * @param string|null $dest_dir The directory to unzip the extension dll to, if null the current php.ini extension_dir is used.
+     * @return boolean Weather the extension was downloaded and unzipped successfully.
+     */
     public static function windowsInstallPeclExtension(string $extension, ?string $dest_dir=null):bool{
         $url = self::windowsPeclUrl($extension);
         if(!$url){
@@ -93,6 +109,11 @@ class extensions{
         return true;
     }
     //Linux
+    /**
+     * UBUNTU/LINUX ONLY - Ensures the ondrej/php apt repository is enabled.
+     *
+     * @return boolean Weather the repository is enabled.
+     */
     public static function linuxEnsurePhpRepo():bool{
         // Check if the ondrej/php repo is already present
         exec("grep -rq 'ondrej/php' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null", $_, $grepExit);
@@ -133,6 +154,12 @@ class extensions{
     }
 
     //Both
+    /**
+     * Checks weather the extension is loaded, if the extension is not loaded it will try to enable it so it is available after a restart of PHP-CLI.
+     *
+     * @param string $extension The extension name.
+     * @return boolean Weather the extension is enabled.
+     */
     public static function ensure(string $extension):bool{
         if(extension_loaded($extension)){
             return true;
@@ -141,6 +168,14 @@ class extensions{
         self::setEnabled($extension, true);
         return false;
     }
+    /**
+     * Returns extension info, contains a list of builtin extensions and bundled extensions and install names for extensions where their install name is different to the extension name reported.
+     * Access the lists like this: $extensionInfo['builtin'][PHP_OS_FAMILY] or $extensionInfo['bundled'][PHP_OS_FAMILY] or $extensionInfo['installnames'][PHP_OS_FAMILY].
+     * The installnames is not a list, it is an array where the keys are the wanted extension name and the values are the extension to install that gets the original name.
+     * Only contains info for Windows (8.5 ts zip) and Linux (Ubuntu 24.04.4 LTS on php8.5 from ondrej/php), last updated on 2026-05-27.
+     *
+     * @return array The array of information about extensions.
+     */
     public static function extensionInfo():array{
         return [
             'builtin' => [
@@ -177,6 +212,11 @@ class extensions{
             ]
         ];
     }
+    /**
+     * Gets the build info for php, thread safety and vs version.
+     *
+     * @return array An array with build info, $buildInfo['ts'] will be "nts" or "ts" and $buildInfo['vs'] will be something like "vs17".
+     */
     public static function buildInfo():array{
         ob_start();
         phpinfo(INFO_GENERAL);
@@ -198,6 +238,12 @@ class extensions{
             'vs' => 'vs17',
         ];
     }
+    /**
+     * Checks weather some extensions are loaded.
+     *
+     * @param array $extensions A list of extension names.
+     * @return boolean Weather all the extensions are loaded.
+     */
     public static function areLoaded(array $extensions):bool{
         $areLoaded = true;
 
@@ -210,9 +256,22 @@ class extensions{
 
         return $areLoaded;
     }
+    /**
+     * Returns the php major and minor version with a dot seperating them.
+     *
+     * @return string returns PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION.
+     */
     public static function phpVersion():string{
         return PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
     }
+    /**
+     * Enables or disables an extension, uses phpenmod and phpdismod on ubuntu or edits the php.ini file on windows.
+     *
+     * @param string $extension The extension name.
+     * @param boolean $enabled Weather to enable or disable the extension.
+     * @param boolean $allowDownload Weather to allow downloading if enableing and not already installed.
+     * @return boolean Weather the operation was successful.
+     */
     public static function setEnabled(string $extension, bool $enabled=true, bool $allowDownload=true):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
             mklog2(2, "Invalid extension name $extension");
@@ -261,6 +320,12 @@ class extensions{
 
         return true;
     }
+    /**
+     * Installs an extension using platform specific methods.
+     *
+     * @param string $extension The name of the extension.
+     * @return boolean Weather the extension is now installed.
+     */
     public static function install(string $extension):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
             mklog2(2, "Invalid extension name $extension");
@@ -294,6 +359,12 @@ class extensions{
 
         return true;
     }
+    /**
+     * Checks weather an extension is in stalled.
+     *
+     * @param string $extension The name of the extension.
+     * @return boolean Weather it is installed.
+     */
     public static function installed(string $extension):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
             mklog2(2, "Invalid extension name $extension");
@@ -311,7 +382,15 @@ class extensions{
         return file_exists($extensionDir . "/" . $extensionFile);
     }
 }
+/**
+ * php.ini management.
+ */
 class inimgmt{
+    /**
+     * Gets a list of hard coded php.ini settings when in the cli sapi. Last updated on php 8.5.
+     *
+     * @return array
+     */
     public static function cliHardCoded():array{
         return [
             'html_errors',
@@ -323,6 +402,14 @@ class inimgmt{
             'max_input_time',
         ];
     }
+    /**
+     * Goes over a list of lines and replaces the first line that starts with a specific string.
+     *
+     * @param array $lines The list of lines.
+     * @param string $starting What the line to replace starts with.
+     * @param string $replacement What to replace the line with.
+     * @return boolean Weather a line was found and replaced.
+     */
     public static function replaceLineBeginingWith(array &$lines, string $starting, string $replacement):bool{
         $count = strlen($starting);
         $somethingHappened = false;
@@ -341,6 +428,12 @@ class inimgmt{
 
         return $somethingHappened;
     }
+    /**
+     * Checks weather some php.ini settings match expected values.
+     *
+     * @param array $expected The expected values, the keys are ini_get names and the values are compared to ini_get return.
+     * @return boolean Weather all the specified settings match.
+     */
     public static function doesSettingsMatch(array $expected):bool{
         $allMatch = true;
         $cliHardCoded = inimgmt::cliHardCoded();
@@ -360,6 +453,11 @@ class inimgmt{
 
         return $allMatch;
     }
+    /**
+     * Gets the loaded php.ini file, and checks existance.
+     *
+     * @return string|null The path on success or null on failure.
+     */
     public static function iniPath():?string{
         $iniPath = php_ini_loaded_file();
         if(!is_string($iniPath) || !file_exists($iniPath)){
@@ -367,6 +465,11 @@ class inimgmt{
         }
         return $iniPath;
     }
+    /**
+     * Backs up the loaded php.ini.
+     *
+     * @return boolean Weather the backup was successful.
+     */
     public static function backupIni():bool{
         $iniPath = self::iniPath();
         if(!$iniPath){
@@ -377,6 +480,12 @@ class inimgmt{
 
         return copy($iniPath, $backupPath);
     }
+    /**
+     * Reads the current php.ini using file() and returns the lines in a list.
+     *
+     * @param boolean $checkWriteable Weather to check if the file is writable.
+     * @return array|null The lines on success or null on failure.
+     */
     public static function loadIni(bool $checkWriteable=true):?array{
         $path = self::iniPath();
         if(!$path){
@@ -394,6 +503,13 @@ class inimgmt{
 
         return $lines;
     }
+    /**
+     * Sets php.ini settings given a list of lines.
+     *
+     * @param array $lines The list of lines that represents a php.ini.
+     * @param array $settings An array where the keys are setting names and values are setting values, the values will need to be escaped before passing here.
+     * @return boolean Weather all the settings could be set.
+     */
     public static function setSettingsOnLines(array &$lines, array $settings):bool{
         $success = true;
         foreach($settings as $settingName => $settingValue){
@@ -406,6 +522,14 @@ class inimgmt{
         }
         return $success;
     }
+    /**
+     * Should only be used on windows - Edits the loaded php.ini to enable or disable extensions.
+     *
+     * @param string $extension The extension name.
+     * @param boolean $enabled Weather to enable or disable the extension.
+     * @param boolean $backupIni Weather to create a backup of the php.ini before editing.
+     * @return boolean Weather the edit was successful.
+     */
     public static function windowsEnableExtension(string $extension, bool $enabled, bool $backupIni=true):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
             mklog2(2, "Invalid extension name $extension");
@@ -448,6 +572,12 @@ class inimgmt{
 
         return self::saveIni($lines, $backupIni);
     }
+    /**
+     * Set php.ini settings.
+     *
+     * @param array $settings An array of settings, the keys are setting names and the values are setting values, the values need to be escaped before passing here.
+     * @return boolean Weather the setting changes were successful.
+     */
     public static function setIniSettings(array $settings):bool{
         $lines = self::loadIni();
         if(!$lines){
@@ -467,6 +597,13 @@ class inimgmt{
 
         return true;
     }
+    /**
+     * Saves lines to the current php.ini.
+     *
+     * @param array $lines The lines to replace the php.ini file with.
+     * @param boolean $backup Weather to create a backup of the php.ini before editing.
+     * @return boolean Weather the operation was successful.
+     */
     public static function saveIni(array $lines, bool $backup=true):bool{
         if($backup){
             if(!self::backupIni()){
@@ -483,9 +620,21 @@ class inimgmt{
         return file_put_contents($path, $lines) !== false;
     }
 }
+/**
+ * Functions specifically for Ubuntu/Linux.
+ */
 class linuxcmd{
+    /**
+     * @var integer The timestamp of the last apt update.
+     */
     private static $lastAptUpdate = 0;
 
+    /**
+     * Runs a command under sudo.
+     *
+     * @param string $command The command to be passed to sudo.
+     * @return integer The exit code of the command.
+     */
     public static function sudo(string $command):int{
         // sudo output bypasses stdout, it goes directly to tty.
         $process = proc_open('sudo ' . $command, [
@@ -496,10 +645,22 @@ class linuxcmd{
 
         return proc_close($process);        // blocks until done
     }
+    /**
+     * Checks if an apt package is installed.
+     *
+     * @param string $package The package name.
+     * @return boolean Weather the package is installed.
+     */
     public static function isAptPackageInstalled(string $package):bool{
         exec('dpkg-query -W ' . escapeshellarg($package), $output, $exitCode);
         return $exitCode === 0;
     }
+    /**
+     * Runs apt update under sudo, has a 1 hour timeout.
+     *
+     * @param boolean $ignoreTimeout Weather to ignore the timeout.
+     * @return boolean Weather the update was a success or an update was done in the last hour and ignoretimeout is false.
+     */
     public static function updateApt(bool $ignoreTimeout=false):bool{
         if(time() - self::$lastAptUpdate > 3600 && !$ignoreTimeout){
             return true;
@@ -514,7 +675,13 @@ class linuxcmd{
         return false;
     }
 }
-
+/**
+ * Similar to mklog() but if mklog is not defined it just echoes the message and type.
+ *
+ * @param integer $type The numerical message type, see mklog().
+ * @param string $message The message to display / log if possible.
+ * @return void
+ */
 function mklog2(int $type, string $message):void{
     if(function_exists('mklog')){
         mklog($type, $message);

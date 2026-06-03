@@ -1326,14 +1326,8 @@ class user_input{
             echo "\n";
         }
 
-        if(PHP_OS_FAMILY === 'Linux' && function_exists('readline')){
-            $return = readline(">");
-            readline_add_history($return);
-        }
-        else{
-            echo ">";
-            $return = trim(fgets(STDIN));
-        }
+        $return = readline(">");
+        readline_add_history($return);
 
         if($returnArray){
             $return = cli::parseLine($return);

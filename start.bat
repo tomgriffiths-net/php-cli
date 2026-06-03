@@ -34,7 +34,7 @@ if exist cli.php (
 
         echo Installing PHP 8.5
 
-        powershell -c "& ([ScriptBlock]::Create((irm 'https://www.php.net/include/download-instructions/windows.ps1'))) -Version 8.5"
+        powershell -c "& ([ScriptBlock]::Create((irm 'https://www.php.net/include/download-instructions/windows.ps1'))) -Version 8.5 -ThreadSafe $true"
 
         if !errorlevel! neq 0 (
             echo Error: PHP installation failed.
