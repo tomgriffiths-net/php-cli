@@ -12,18 +12,18 @@ class extensions{
      */
     public static function windowsPeclUrl(string $extension):?string{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
-            mklog2(3, "Invalid extension name $extension");
+            mklog0(3, "Invalid extension name $extension");
             return false;
         }
 
         if(!extension_loaded('openssl')){
-            mklog2(3, "OpenSSL extension not enabled, this is needed to access pecl.php.net");
+            mklog0(3, "OpenSSL extension not enabled, this is needed to access pecl.php.net");
             return false;
         }
 
         $version = trim(@file_get_contents("https://pecl.php.net/rest/r/$extension/stable.txt"));
         if(!$version){
-            mklog2(3, "Failed to get latest version for $extension");
+            mklog0(3, "Failed to get latest version for $extension");
             return null;
         }
 
@@ -36,7 +36,7 @@ class extensions{
         // HEAD request to confirm the file actually exists
         $headers = @get_headers($url);
         if(!$headers || !str_contains($headers[0], '200')){
-            mklog2(3, "Could not get compatible version for $extension");
+            mklog0(3, "Could not get compatible version for $extension");
             return null;
         }
 
@@ -52,13 +52,13 @@ class extensions{
     public static function windowsInstallPeclExtension(string $extension, ?string $dest_dir=null):bool{
         $url = self::windowsPeclUrl($extension);
         if(!$url){
-            mklog2(2, "No Windows build found for $extension matching your PHP config");
+            mklog0(2, "No Windows build found for $extension matching your PHP config");
             return false;
         }
 
         $dest_dir = $dest_dir ?? ini_get('extension_dir');
         if(!$dest_dir){
-            mklog2(3, 'Could not determine extension directory');
+            mklog0(3, 'Could not determine extension directory');
             return false;
         }
 
@@ -66,21 +66,21 @@ class extensions{
         $tmp_zip  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
 
         // download zip to temp
-        mklog2(1, "Downloading $filename");
+        mklog0(1, "Downloading $filename");
         $zip_data = file_get_contents($url);
         if(!$zip_data){
-            mklog2(3, "Failed to download $filename");
+            mklog0(3, "Failed to download $filename");
             return false;
         }
         if(!file_put_contents($tmp_zip, $zip_data)){
-            mklog2(3, "Failed to save $filename");
+            mklog0(3, "Failed to save $filename");
             return false;
         }
 
         // extract just the dll
         $zip = new ZipArchive();
         if($zip->open($tmp_zip) !== true){
-            mklog2(3, "Failed to open zip $tmp_zip");
+            mklog0(3, "Failed to open zip $tmp_zip");
             unlink($tmp_zip);
             return false;
         }
@@ -89,14 +89,14 @@ class extensions{
         $dest     = rtrim($dest_dir, '\\/') . "/" . $dll_name;
 
         if($zip->locateName($dll_name) === false){
-            mklog2(3, "Could not find $dll_name in downloaded zip");
+            mklog0(3, "Could not find $dll_name in downloaded zip");
             $zip->close();
             unlink($tmp_zip);
             return false;
         }
 
         if(file_put_contents($dest, $zip->getFromName($dll_name))){
-            mklog2(3, "Failed to save dll from downloaded zip to extension dir");
+            mklog0(3, "Failed to save dll from downloaded zip to extension dir");
             $zip->close();
             unlink($tmp_zip);
             return false;
@@ -105,7 +105,7 @@ class extensions{
         $zip->close();
         unlink($tmp_zip);
 
-        mklog2(1, "Installed $dll_name to $dest");
+        mklog0(1, "Installed $dll_name to $dest");
         return true;
     }
     //Linux
@@ -125,14 +125,14 @@ class extensions{
         // Ensure add-apt-repository is available
         exec("command -v add-apt-repository 2>/dev/null", $_, $cmdExit);
         if($cmdExit !== 0){
-            mklog2(1, "add-apt-repository command not found. Installing software-properties-common");
+            mklog0(1, "add-apt-repository command not found. Installing software-properties-common");
 
             if(!linuxcmd::updateApt()){
-                mklog2(2, "Failed to run apt update, package versions may be out of date, continuing");
+                mklog0(2, "Failed to run apt update, package versions may be out of date, continuing");
             }
 
             if(linuxcmd::sudo("apt install software-properties-common -y -qq") !== 0) {
-                mklog2(3, "Failed to install software-properties-common");
+                mklog0(3, "Failed to install software-properties-common");
                 return false;
             }
         }
@@ -140,13 +140,13 @@ class extensions{
         // Add the ondrej/php PPA
         mklog(1, "Adding ondrej/php apt repository");
         if(linuxcmd::sudo("LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y") !== 0){
-            mklog2(3, "Failed to add ondrej/php apt repository");
+            mklog0(3, "Failed to add ondrej/php apt repository");
             return false;
         }
 
         // Update apt after adding the new repo
         if(!linuxcmd::updateApt(true)){
-            mklog2(3, "Failed to update apt after adding ondrej/php repository");
+            mklog0(3, "Failed to update apt after adding ondrej/php repository");
             return false;
         }
 
@@ -230,7 +230,7 @@ class extensions{
             ];
         }
 
-        mklog2(1, "Using fallback build info");
+        mklog0(1, "Using fallback build info");
 
         // fallback
         return [
@@ -274,21 +274,21 @@ class extensions{
      */
     public static function setEnabled(string $extension, bool $enabled=true, bool $allowDownload=true):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
-            mklog2(2, "Invalid extension name $extension");
+            mklog0(2, "Invalid extension name $extension");
             return false;
         }
 
         if(extension_loaded($extension) && $enabled){
-            mklog2(1, "Extension $extension is already enabled");
+            mklog0(1, "Extension $extension is already enabled");
             return true;
         }
 
         if(self::installed($extension)){
-            mklog2(1, "Enabling extension " . $extension . (function_exists('mklog') ? ", you will need to restart PHP-CLI for the extension to become loaded" : ""));
+            mklog0(1, "Enabling extension " . $extension . (function_exists('mklog') ? ", you will need to restart PHP-CLI for the extension to become loaded" : ""));
             if(PHP_OS_FAMILY === 'Linux'){
                 $exit = linuxcmd::sudo(($enabled ? "phpenmod " : "phpdismod ") . $extension);
                 if($exit !== 0){
-                    mklog2(3, ($enabled ? "phpenmod " : "phpdismod ") . " command reported error code " . $exit);
+                    mklog0(3, ($enabled ? "phpenmod " : "phpdismod ") . " command reported error code " . $exit);
                     return false;
                 }
                 return true;
@@ -303,18 +303,18 @@ class extensions{
         }
 
         if(!$allowDownload){
-            mklog2(3, "Extension $extension is not installed and allowDownload is false");
+            mklog0(3, "Extension $extension is not installed and allowDownload is false");
             return false;
         }
 
-        mklog2(1, "Installing extension " . $extension);
+        mklog0(1, "Installing extension " . $extension);
         if(!self::install($extension)){
-            mklog2(3, "Failed to install " . $extension);
+            mklog0(3, "Failed to install " . $extension);
             return false;
         }
 
         if(!self::setEnabled($extension, true, false)){
-            mklog2(3, "Failed to enable " . $extension . " after install");
+            mklog0(3, "Failed to enable " . $extension . " after install");
             return false;
         }
 
@@ -328,7 +328,7 @@ class extensions{
      */
     public static function install(string $extension):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
-            mklog2(2, "Invalid extension name $extension");
+            mklog0(2, "Invalid extension name $extension");
             return false;
         }
 
@@ -340,19 +340,19 @@ class extensions{
 
         if(PHP_OS_FAMILY === 'Linux'){
             if(!self::linuxEnsurePhpRepo()){
-                mklog2(3, "Failed to ensure the ondrej/php apt repository was enabled");
+                mklog0(3, "Failed to ensure the ondrej/php apt repository was enabled");
                 return false;
             }
 
             $command = "apt install php" . self::phpVersion() . "-" . $extensionName . " -y";
             if(linuxcmd::sudo($command) !== 0){
-                mklog2(3, "Failed to run " . $command);
+                mklog0(3, "Failed to run " . $command);
                 return false;
             }
         }
         else{
             if(!self::windowsInstallPeclExtension($extensionName)){
-                mklog2(3, "Failed to download pecl extension " . $extensionName);
+                mklog0(3, "Failed to download pecl extension " . $extensionName);
                 return false;
             }
         }
@@ -367,7 +367,7 @@ class extensions{
      */
     public static function installed(string $extension):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
-            mklog2(2, "Invalid extension name $extension");
+            mklog0(2, "Invalid extension name $extension");
             return false;
         }
 
@@ -532,18 +532,18 @@ class inimgmt{
      */
     public static function windowsEnableExtension(string $extension, bool $enabled, bool $backupIni=true):bool{
         if(!preg_match('/^[a-z0-9_-]{1,64}$/', $extension)){
-            mklog2(2, "Invalid extension name $extension");
+            mklog0(2, "Invalid extension name $extension");
             return false;
         }
 
         if(extension_loaded($extension) && $enabled){
-            mklog2(1, "Extension $extension is already enabled");
+            mklog0(1, "Extension $extension is already enabled");
             return true;
         }
 
         $lines = self::loadIni();
         if(!$lines){
-            mklog2(2,"Failed to load php.ini");
+            mklog0(2,"Failed to load php.ini");
             return false;
         }
 
@@ -581,17 +581,17 @@ class inimgmt{
     public static function setIniSettings(array $settings):bool{
         $lines = self::loadIni();
         if(!$lines){
-            mklog2(3, "Failed to load php.ini");
+            mklog0(3, "Failed to load php.ini");
             return false;
         }
 
         if(!self::setSettingsOnLines($lines, $settings)){
-            mklog2(3, "Failed to set ini settings");
+            mklog0(3, "Failed to set ini settings");
             return false;
         }
 
         if(!self::saveIni($lines)){
-            mklog2(3, "Failed to save php.ini");
+            mklog0(3, "Failed to save php.ini");
             return false;
         }
 
@@ -607,7 +607,7 @@ class inimgmt{
     public static function saveIni(array $lines, bool $backup=true):bool{
         if($backup){
             if(!self::backupIni()){
-                mklog2(3, "Failed to create backup of php.ini before modification");
+                mklog0(3, "Failed to create backup of php.ini before modification");
                 return false;
             }
         }
@@ -618,6 +618,42 @@ class inimgmt{
         }
 
         return file_put_contents($path, $lines) !== false;
+    }
+}
+/**
+ * Finds out if PHP-CLI was started with adminstrative privileges. (Ubuntu + Windows)
+ */
+class is_admin{
+    private static ?bool $state = null;
+    
+    /**
+     * Checks weather the PHP-CLI process is running as an admin. Only checks on the first call, further calls get a cached result.
+     *
+     * @return boolean Weather the process was run as admin or not.
+     */
+    public static function check():bool{
+        if(!is_bool(self::$state)){
+            mklog(0,"Checking for Administrator privilages");
+
+            if(PHP_OS_FAMILY === 'Linux'){
+                self::$state = (posix_geteuid() === 0);
+            }
+            else{
+                exec("net session >nul 2>&1", $_, $resultCode);
+                self::$state = ($resultCode === 0);
+            }
+        }
+
+        return self::$state;
+    }
+    /**
+     * Cleares the check() cache and calls check again then returns its new value.
+     *
+     * @return boolean Weather the process was run as admin or not.
+     */
+    public static function refresh():bool{
+        self::$state = null;
+        return self::check();
     }
 }
 /**
@@ -666,7 +702,7 @@ class linuxcmd{
             return true;
         }
 
-        mklog2(1, "Running apt update");
+        mklog0(1, "Running apt update");
 
         if(self::sudo("apt update") === 0){
             self::$lastAptUpdate = time();
@@ -682,7 +718,7 @@ class linuxcmd{
  * @param string $message The message to display / log if possible.
  * @return void
  */
-function mklog2(int $type, string $message):void{
+function mklog0(int $type, string $message):void{
     if(function_exists('mklog')){
         mklog($type, $message);
     }

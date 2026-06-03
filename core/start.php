@@ -35,6 +35,10 @@ mklog(1,'Starting');
 mklog(1,'Loading resources');
 require_once 'resource2.php';
 
+if(is_admin::check()){
+    mklog(1,"Starting with administrator permissions");
+}
+
 mklog(1,'Reading start arguments');
 
 if(!isset($fileArguments)){
@@ -140,16 +144,16 @@ unset($fileArguments);
 
 echo "\033]0;PHP-CLI: " . getcwd() . "\007";
 
-//////////
+mklog(1,'Loading packages');
+require_once 'packages.php';
 
-mklog(1, "Loading main");
 require_once 'main.php';
 
 /**
- * Makes a log entry
+ * Makes a log entry and displays it to the user.
  *
  * @param integer $type Severity from 0 to 3 (inclusive) where 0 is for verbose messages, 1 is general, 2 is warning, and 3 is error.
- * Error logs will pause the program for 5 seconds so the user can read the scary red text.
+ * Error logs can pause the program for an amount of time in seconds if the sleep-on-error argument is above 0.
  * @param string $message The message to be logged.
  * @param string $formattedMessage Optionally a formatted version of the message that will be printed instead of the original message.
  * The original message will still be saved.

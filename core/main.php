@@ -1,8 +1,4 @@
 <?php
-mklog(1,'Loading packages');
-require_once 'packages.php';
-//packages loaded
-
 mklog(1,'Took ' . round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3) . ' seconds to start');
 
 cli::start();
@@ -141,13 +137,21 @@ class cli{
     }
 
     /**
+     * Returns the version number of PHP-CLI.
+     *
+     * @return integer The current PHP-CLI version number.
+     */
+    public static function version():int{
+        return 106;
+    }
+    /**
      * Gets general info about the PHP-CLI install and some system information.
      *
      * @return array See readme.
      */
     public static function info():array{
         return [
-            'version' => 105,
+            'version' => self::version(),
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
             'cpuThreads' => (PHP_OS_FAMILY === 'Linux' ? (int) shell_exec('nproc') : $_SERVER['NUMBER_OF_PROCESSORS']),
