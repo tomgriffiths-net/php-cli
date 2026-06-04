@@ -10,7 +10,7 @@ class pkgmgr{
     private static $packageCount = 0;
     private static $packageInitCount = 0;
     private static $packages = [];
-    private static $preloadedPackages = ["self","cli","pkgmgr","extensions","inimgmt","linuxcmd","cli_formatter","cmd","commandline_list","data_types","downloader","files","json","time","timetest","txtrw","user_input"];
+    private static $preloadedPackages = ["self","cli","pkgmgr","extensions","inimgmt","is_admin","linuxcmd","cli_formatter","cmd","commandline_list","data_types","downloader","files","json","time","timetest","txtrw","user_input"];
 
     /**
      * @internal description
