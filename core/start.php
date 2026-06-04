@@ -144,9 +144,6 @@ unset($fileArguments);
 
 echo "\033]0;PHP-CLI: " . getcwd() . "\007";
 
-mklog(1,'Loading packages');
-require_once 'packages.php';
-
 require_once 'main.php';
 
 /**

@@ -1,4 +1,7 @@
 <?php
+mklog(1,'Loading packages');
+require_once 'packages.php';
+
 mklog(1,'Took ' . round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3) . ' seconds to start');
 
 cli::start();
@@ -142,7 +145,7 @@ class cli{
      * @return integer The current PHP-CLI version number.
      */
     public static function version():int{
-        return 106;
+        return 107;
     }
     /**
      * Gets general info about the PHP-CLI install and some system information.
