@@ -1,9 +1,9 @@
 <?php
-$info['id_name'] = "mediamgr";
-$info['name'] = "Media Manager";
+$info['id_name'] = "";
+$info['name'] = "";
 $info['version'] = 1;
-$info['author'] = "tom";
-$info['description'] = "Video ingest / encoding / archive manager";
+$info['author'] = "";
+$info['description'] = "";
 $info['dependencies'] = [];
 
 $dir = "packages/" . $info['id_name'];
