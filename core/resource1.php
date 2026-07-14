@@ -138,7 +138,7 @@ class extensions{
         }
 
         // Add the ondrej/php PPA
-        mklog(1, "Adding ondrej/php apt repository");
+        mklog0(1, "Adding ondrej/php apt repository");
         if(linuxcmd::sudo("LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y") !== 0){
             mklog0(3, "Failed to add ondrej/php apt repository");
             return false;
@@ -633,7 +633,7 @@ class is_admin{
      */
     public static function check():bool{
         if(!is_bool(self::$state)){
-            mklog(0,"Checking for Administrator privilages");
+            mklog0(0,"Checking for Administrator privilages");
 
             if(PHP_OS_FAMILY === 'Linux'){
                 self::$state = (posix_geteuid() === 0);

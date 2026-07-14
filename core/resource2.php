@@ -458,6 +458,7 @@ class data_types{
  * Download a file.
  */
 class downloader{
+    private static $lastProgressUpdate = 0;
     /**
      * Downloads a file and shows a progress bar.
      *
@@ -519,7 +520,13 @@ class downloader{
         return $return;
     }
     private static function curlProgress($resource, $download_size = 0, $downloaded = 0, $upload_size = 0, $uploaded = 0):void{
-        if($download_size > 0 && $downloaded > 0) {
+        if($download_size > 0 && $downloaded > 0){
+            $currentTime = microtime(true);
+            if($currentTime - self::$lastProgressUpdate < 0.1){
+                return;
+            }
+            self::$lastProgressUpdate = $currentTime;
+
             echo files::progressTracker($download_size, $downloaded);
         }
     }
@@ -672,25 +679,17 @@ class files{
         return $return;
     }
     /**
-     * Removes the last name in a file path.
+     * @deprecated
+     * Use dirname instead.
      *
      * @param string $path The full file path.
      * @return string The path without the last name.
      */
     public static function getFileDir(string $path):string{
-        if(PHP_OS_FAMILY === 'Linux'){
-            $path = str_replace("\\","/",$path);
-            $pos = strripos($path,"/");
-        }
-        else{
-            $path = str_replace("/","\\",$path);
-            $pos = strripos($path,"\\");
-        }
-        
-        $dir = substr($path,0,$pos);
-        return $dir;
+        return dirname($path);
     }
     /**
+     * @deprecated
      * Use basename instead.
      *
      * @param string $path
@@ -751,6 +750,7 @@ class files{
             }
 
             $bytesCopied = 0;
+            $lastProgressUpdate = 0;
             while(!feof($in)){
                 $chunk = fread($in, 1024*1024);
 
@@ -769,6 +769,11 @@ class files{
 
                 $bytesCopied += strlen($chunk);
                 
+                $currentTime = microtime(true);
+                if($currentTime - $lastProgressUpdate < 0.1){
+                    continue;
+                }
+                $lastProgressUpdate = $currentTime;
                 echo self::progressTracker($totalBytes, $bytesCopied);
             }
 
@@ -802,18 +807,15 @@ class files{
         return $addquotes ? escapeshellarg($path) : $path;
     }
     /**
+     * @deprecated
+     * Use pathinfo($fileName, PATHINFO_EXTENSION) instead.
      * Gets the extension from the last .xyz part of a path.
      *
      * @param string $fileName The path or name of the file.
      * @return string The extension of the file.
      */
     public static function getFileExtension(string $fileName):string{
-        $ext = "";
-        $pos = strripos($fileName,".");
-        if($pos !== false){
-            $ext = substr($fileName,$pos+1);
-        }
-        return $ext;
+        return pathinfo($fileName, PATHINFO_EXTENSION);
     }
     /**
      * Returns an array which has lowercase file extensions as keys and mime types as values.
@@ -1336,14 +1338,16 @@ class user_input{
     }
     /**
      * Asks the user to input yes (y) or no (n).
-     *
+     * @param boolean $newline Weather to print a newline before the y/n prompt.
      * @return boolean Weather the input was yes.
      */
-    public static function yesNo():bool{
+    public static function yesNo(bool $newline=true):bool{
         $res = "";
         while(true){
-
-            echo "\ny/n >";
+            if($newline){
+                echo "\n";
+            }
+            echo "y/n ";
 
             $res = substr(trim(strtolower(self::await())), 0, 1);
 

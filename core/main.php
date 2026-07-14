@@ -145,7 +145,7 @@ class cli{
      * @return integer The current PHP-CLI version number.
      */
     public static function version():int{
-        return 107;
+        return 108;
     }
     /**
      * Gets general info about the PHP-CLI install and some system information.
