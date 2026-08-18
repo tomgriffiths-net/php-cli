@@ -550,7 +550,7 @@ class files{
      * @return array A list of all the files that were found, this does not include the sub folder names.
      */
     public static function globRecursive(string $base, string $pattern, int $flags=0):array{
-        mklog(1, "Recursivly globbing folder " . $base);
+        mklog(0, "Recursivly globbing folder " . $base);
 
         $flags = $flags & ~GLOB_NOCHECK;
         
@@ -1154,6 +1154,219 @@ class json{
     }
 }
 /**
+ * Read and write persistant named values.
+ */
+class settings{
+    private static string $settingsFile = "settings.json";
+    public static function init():void{
+        //Check if settings file does not exist
+        if(!is_file(self::$settingsFile)){
+            mklog(0,'Settings file does not exist, creating file');
+            
+            if(!files::mkFile(self::$settingsFile, "[]")){
+                mklog(2,'Failed to create settings file');
+            }
+        }
+    }
+    public static function command(string $line):void{
+        $lines = explode(" ",$line);
+        if($lines[0] === "backup"){
+            self::backup();
+        }
+    }
+    /**
+     * Create a timestamped backup of the current settings file.
+     * @return bool Weather the backup was successful.
+     */
+    public static function backup():bool{
+        if(!files::copyFile(self::$settingsFile, "backups/settings-" . time() . ".json", false)){
+            mklog(3,'Failed to create a backup of the settings file');
+            return false;
+        }
+
+        mklog(1,'Created backup of the settings file');
+        return true;
+    }
+    /**
+     * Check if a setting is set.
+     * @param string $settingName The name of the setting.
+     * @return bool Weather the setting is set.
+     */
+    public static function isset(string $settingName):bool{
+        $settings = json::readFile(self::$settingsFile, false);
+        if(!is_array($settings)){
+            return false;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        if(isset($trace[1]['class'])){
+            $settingName = $trace[1]['class'] . "/" . $settingName;
+        }
+
+        return (bool) self::doAction($settings, $settingName, "isset");
+    }
+    /**
+     * Read a setting.
+     * @param string $settingName The name of the setting.
+     * @return mixed The value of the setting or null on failure.
+     */
+    public static function read(string $settingName):mixed{
+        $settings = json::readFile(self::$settingsFile, false);
+        if(!is_array($settings)){
+            return null;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        if(isset($trace[1]['class'])){
+            $settingName = $trace[1]['class'] . "/" . $settingName;
+        }
+
+        return self::doAction($settings, $settingName, "read");
+    }
+    /**
+     * Sets a setting to a specific value.
+     * @param string $settingName The name of the setting.
+     * @param mixed $settingValue The value to set the setting to.
+     * @param bool $overwrite Weather to overwrite an existing setting.
+     * @return bool Weather the setting was set.
+     */
+    public static function set(string $settingName, mixed $settingValue, bool $overwrite=false):bool{
+        $settings = json::readFile(self::$settingsFile, false);
+        if(!is_array($settings)){
+            return false;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        if(isset($trace[1]['class'])){
+            $settingName = $trace[1]['class'] . "/" . $settingName;
+        }
+
+        if(!self::doAction($settings, $settingName, "write", $settingValue, $overwrite)){
+            return false;
+        }
+
+        if(!json::writeFile(self::$settingsFile, $settings, true)){
+            return false;
+        }
+
+        return true;
+    }
+    /**
+     * Unsets a setting.
+     * @param string $settingName The setting name.
+     * @return bool Weather the setting was unset.
+     */
+    public static function unset(string $settingName):bool{
+        $settings = json::readFile(self::$settingsFile, false);
+        if(!is_array($settings)){
+            return false;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        if(isset($trace[1]['class'])){
+            $settingName = $trace[1]['class'] . "/" . $settingName;
+        }
+
+        if(!self::doAction($settings, $settingName, "unset")){
+            return false;
+        }
+
+        if(!json::writeFile(self::$settingsFile, $settings, true)){
+            return false;
+        }
+
+        return true;
+    }
+    /**
+     * Performs isset/read/write/unset on a nested array using a "/"-delimited path,
+     * e.g. "name1/name2" targets $array['name1']['name2'].
+     * 
+     * @param array &$array The array to do the action on.
+     * @param string $name The name of the setting.
+     * @param string $action The action to do, isset/read/write/unset.
+     * @param mixed|null $value The value to store at the named variable.
+     * @param bool $overwrite Weather to overwrite an existing value.
+     * @return mixed For isset/write/unset true on success or false on failure, read returns the stored value on success or null on failure, returns null if an invalid action is specified.
+     */
+    public static function doAction(array &$array, string $name, string $action="isset", mixed $value=null, bool $overwrite=false):mixed{
+        if(!in_array($action, ["isset","read","write","unset"])){
+            return null;
+        }
+
+        // Split the path into individual keys, e.g. "a/b/c" -> ["a", "b", "c"]
+        $keys = explode("/", $name);
+
+        // $ref will "follow" us down into the array as we descend through each key.
+        // Using a reference (&) means changes made through $ref actually modify
+        // the original $array, not a copy of it.
+        $ref = &$array;
+
+        foreach($keys as $i => $key){
+            // True when we're on the last key in the path — i.e. the key we're
+            // actually trying to isset/read/write/unset, as opposed to an
+            // intermediate key we just need to step through.
+            $isLast = ($i === array_key_last($keys));
+
+            if($isLast){
+                // array_key_exists() (not isset()) is used deliberately here so that
+                // a key explicitly set to null still counts as "set". isset() would
+                // return false for a null value, which would make a stored null
+                // indistinguishable from a setting that was never set at all.
+                $isset = is_array($ref) && array_key_exists($key, $ref);
+
+                if($action === "isset") return $isset;
+
+                if($action === "read") return $isset ? $ref[$key] : null;
+
+                if($action === "write"){
+                    // Refuse to clobber an existing value unless $overwrite is true
+                    if($isset && !$overwrite) return false;
+                    $ref[$key] = $value;
+                    return true;
+                }
+
+                if($action === "unset"){
+                    // Nothing to remove if it was never set
+                    if(!$isset) return false;
+                    unset($ref[$key]);
+                    return true;
+                }
+            }
+
+            // --- We're not on the last key yet, so we need to step deeper ---
+
+            // If a previous step turned $ref into something that isn't an array
+            // (e.g. a setting was previously stored as a string, and now we're
+            // trying to treat it like a nested container), we can't descend
+            // any further — bail out with an error instead of crashing.
+            if(!is_array($ref)){
+                mklog(2, "Unable to read/set setting in non-array");
+                return null;
+            }
+
+            // If this intermediate key doesn't exist yet:
+            if(!array_key_exists($key, $ref)){
+                // For isset/read/unset, there's nothing here to find — stop early.
+                if($action === "isset") return false;
+                if($action === "read") return null;
+                if($action === "unset") return false;
+
+                // For "write", auto-vivify: create an empty array at this key so
+                // we have somewhere to continue descending into. E.g. writing to
+                // "a/b/c" when $array['a'] doesn't exist yet will create
+                // $array['a'] = [] here, then keep going to create ['b'] next, etc.
+                $ref[$key] = [];
+            }
+
+            // Move $ref one level deeper into the array, following this key.
+            // The "&" keeps it a reference to the real nested array, not a copy.
+            $ref = &$ref[$key];
+        }
+
+        return null;
+    }
+}
+/**
  * @deprecated
  */
 class time{
@@ -1173,7 +1386,7 @@ class time{
     }
 }
 /**
- * @internal
+ * Run a method from the command line
  */
 class timetest{
     public static function command(string $line):void{

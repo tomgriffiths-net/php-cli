@@ -35,9 +35,7 @@ mklog(1,'Starting');
 mklog(1,'Loading resources');
 require_once 'resource2.php';
 
-if(is_admin::check()){
-    mklog(1,"Starting with administrator permissions");
-}
+//Start args
 
 mklog(1,'Reading start arguments');
 
@@ -140,7 +138,13 @@ $arguments = (function(){
 
 unset($fileArguments);
 
-//////////
+//Init stuff
+
+if(is_admin::check()){
+    mklog(1,"Starting with administrator permissions");
+}
+
+settings::init();
 
 echo "\033]0;PHP-CLI: " . getcwd() . "\007";
 
