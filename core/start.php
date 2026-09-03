@@ -34,6 +34,7 @@ mklog(1,'Starting');
 
 mklog(1,'Loading resources');
 require_once 'resource2.php';
+require_once 'info.php';
 
 //Start args
 

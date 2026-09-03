@@ -5,12 +5,9 @@ pkgmgr::init();
  * The package manager.
  */
 class pkgmgr{
-    private static $downloadSite = 'https://www.tomgriffiths.net';
-    private static $downloadSiteFiles = 'https://files.tomgriffiths.net';
     private static $packageCount = 0;
     private static $packageInitCount = 0;
     private static $packages = [];
-    private static $preloadedPackages = ["self","cli","pkgmgr","extensions","inimgmt","is_admin","linuxcmd","cli_formatter","cmd","commandline_list","data_types","downloader","files","json","settings","time","timetest","txtrw","user_input"];
 
     /**
      * @internal description
@@ -80,7 +77,7 @@ class pkgmgr{
         elseif($lines[0] === "update-core"){
             mklog('general','Running Update',false);
             files::ensureFolder("temp/coreupdates");
-            if(!downloader::downloadFile("https://files.tomgriffiths.net/php-cli/updates/latest.zip","temp/coreupdates/latest.zip")){
+            if(!downloader::downloadFile(PHP_CLI_PKG_FILES_URL . "/updates/latest.zip","temp/coreupdates/latest.zip")){
                 echo "Failed to download update file\n";
                 return;
             }
@@ -139,7 +136,7 @@ class pkgmgr{
             return false;
         }
         
-        if(in_array($package, self::$preloadedPackages)){
+        if(in_array($package, PHP_CLI_PRELOAD_PKGS)){
             return true;
         }
 
@@ -155,7 +152,7 @@ class pkgmgr{
         }
 
         foreach($info['dependencies'] as $dependencyId => $dependencyVersion){
-            if(!in_array($dependencyId, self::$preloadedPackages)){
+            if(!in_array($dependencyId, PHP_CLI_PRELOAD_PKGS)){
                 $dependencyInfo = self::getPackageInfo($dependencyId,false);
                 if(is_array($dependencyInfo)){
                     if($dependencyInfo['version'] < $dependencyVersion){
@@ -308,7 +305,7 @@ class pkgmgr{
         }
 
         if($online === true){
-            $result = json::readFile(self::$downloadSite . '/php-cli/api/?function=getPackageInfo&packageId=' . $packageId);
+            $result = json::readFile(PHP_CLI_PKG_API_URL . '/?function=getPackageInfo&packageId=' . $packageId);
             if(!is_array($result)){
                 mklog(2, 'Failed to download information for package ' . $packageId);
                 return false;
@@ -358,7 +355,7 @@ class pkgmgr{
             return false;
         }
         
-        $result = json::readFile(self::$downloadSite . '/php-cli/api/?function=getPackageVersionInfo&packageId=' . $packageId . '&version=' . $version);
+        $result = json::readFile(PHP_CLI_PKG_API_URL . '/?function=getPackageVersionInfo&packageId=' . $packageId . '&version=' . $version);
         if(!is_array($result)){
             mklog(2, 'Unable to download information for package ' . $packageId . ' v' . $version);
             return false;
@@ -455,7 +452,7 @@ class pkgmgr{
 
         $downloadTries = 0;
         retrydownload:
-        if(!downloader::downloadFile(self::$downloadSiteFiles . '/php-cli/packages/' . $packageId . '/' . $downloadVersion . '.zip',$downloadFile)){
+        if(!downloader::downloadFile(PHP_CLI_PKG_FILES_URL . '/packages/' . $packageId . '/' . $downloadVersion . '.zip',$downloadFile)){
             mklog(2,'Failed to download zip file for package ' . $packageId);
             return false;
         }
@@ -564,7 +561,7 @@ class pkgmgr{
             return false;
         }
 
-        if(in_array($packageId, self::$preloadedPackages)){
+        if(in_array($packageId, PHP_CLI_PRELOAD_PKGS)){
             return [];
         }
 
@@ -597,7 +594,7 @@ class pkgmgr{
                 }
             }
             $dependency = trim(substr($dependency,1));
-            if(!in_array($dependency, self::$preloadedPackages) && is_file('packages/' . $dependency . '/main.php')){
+            if(!in_array($dependency, PHP_CLI_PRELOAD_PKGS) && is_file('packages/' . $dependency . '/main.php')){
                 $leftfromdependency = 1;
                 $makedependency = true;
                 while(true){

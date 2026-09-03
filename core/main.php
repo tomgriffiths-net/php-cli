@@ -138,15 +138,6 @@ class cli{
         self::$aliases[$alias] = $command;
         return true;
     }
-
-    /**
-     * Returns the version number of PHP-CLI.
-     *
-     * @return integer The current PHP-CLI version number.
-     */
-    public static function version():int{
-        return 108;
-    }
     /**
      * Gets general info about the PHP-CLI install and some system information.
      *
@@ -154,7 +145,7 @@ class cli{
      */
     public static function info():array{
         return [
-            'version' => self::version(),
+            'version' => PHP_CLI_VERSION,
             'startTime' => $_SERVER['REQUEST_TIME_FLOAT'],
             'pcName' => gethostname(),
             'cpuThreads' => (PHP_OS_FAMILY === 'Linux' ? (int) shell_exec('nproc') : $_SERVER['NUMBER_OF_PROCESSORS']),

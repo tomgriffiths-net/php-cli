@@ -707,7 +707,7 @@ class files{
      * @return boolean Indicates success.
      */
     public static function copyFile(string $pathFrom, string $pathTo, bool $showProgress=true):bool{
-        mklog(1, 'Copying file ' . $pathFrom . ' to ' . $pathTo);
+        mklog(($showProgress ? 1 : 0), 'Copying file ' . $pathFrom . ' to ' . $pathTo . ($showProgress ? " in chunks mode" : ""));
 
         if(!is_file($pathFrom)){
             mklog(2, 'Cannot copy from nonexistant source ' . $pathFrom);
@@ -719,7 +719,7 @@ class files{
             return false;
         }
 
-        $dir = self::getFileDir($pathTo);
+        $dir = dirname($pathTo);
         if(!empty($dir) && !is_dir($dir)){
             if(!self::mkFolder($dir)){
                 mklog(2, 'Failed to create folder for destination file ' . $dir);
@@ -728,8 +728,6 @@ class files{
         }
 
         if($showProgress){
-            mklog(0, 'Copying file in chunk/progress mode');
-
             $totalBytes = filesize($pathFrom);
             if(!$totalBytes){
                 mklog(2, 'Failed to get size of file');
@@ -782,10 +780,10 @@ class files{
                 return false;
             }
 
-            if(fclose($in)){
+            if(!fclose($in)){
                 mklog(2, 'Failed to close input file');
             }
-            if(fclose($out)){
+            if(!fclose($out)){
                 mklog(2, 'Failed to close output file');
             }
 
@@ -1399,7 +1397,7 @@ class timetest{
         echo "\nReturn: " . json_encode($return,JSON_PRETTY_PRINT) . "\n";
 
         $endTime = microtime(true);
-        echo "\nTime Taken: " . round($endTime - $startTime,3) . " seconds.\n";
+        echo "\nTime Taken: " . round($endTime - $startTime,6) . " seconds.\n";
     }
 }
 /**
