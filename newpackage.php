@@ -6,7 +6,8 @@ $info = [
     "name" => "My Package v1.0.0",
     "dependencies" => [
         "id" => "another_package",
-        "min" => "1.0.0"
+        "min" => "1.0.0",
+        "optional" => true
     ],
     "minCliVersion" => "2.0.0",
     "minPhpVersion" => "8.3.0",
