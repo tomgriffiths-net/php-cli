@@ -13,7 +13,8 @@ $info = [
     "operatingSystems" => ["windows"],
     "architectures" => ["x64"],
     "globalName" => "My Package",
-    "description" => "This is my package",
+    "description" => "My first version :)",
+    "globalDescription" => "This is my package",
     "creationTime" => time()
 ];
 
