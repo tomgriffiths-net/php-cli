@@ -24,6 +24,6 @@ mkdir($dir,0777,true);
 file_put_contents($dir . '/information.json',json_encode($info,JSON_PRETTY_PRINT));
 file_put_contents($dir . '/main.php','<?php
 class ' . $info['id'] . '{
-    //public static function command(string $line):void{}
-    //public static function init():void{}
+    //public static function command(string $line):bool{}
+    //public static function init():bool{}
 }');
