@@ -13,16 +13,12 @@ $extensions = [
     'openssl', //openssl at beginning so later extensions can be installed on windows
     'readline',
     'curl',
-    'mysqli',
-    'sockets',
-    'zip'
+    'zip',
+    'sockets'
 ];
 
 if(PHP_OS_FAMILY === 'Linux'){
     $extensions[] = 'posix';
-}
-else{
-    
 }
 
 /////
@@ -34,34 +30,71 @@ if(!in_array(PHP_OS_FAMILY, ['Windows','Linux'])){
 
 require_once 'resource1.php';
 
-if(isset($argv[1]) && $argv[1] === "setini"){
-    if(!inimgmt::setIniSettings($settings)){
-        echo "Error: Failed to set ini settings\n";
+$iniSettingsSet = inimgmt::doesSettingsMatch($settings);
+$extensionsLoaded = extensions::areLoaded($extensions);
+
+$currentCaPath = ini_get("curl.cainfo");
+$caInstalled = !empty($currentCaPath) && is_file($currentCaPath);
+
+if(!$iniSettingsSet || !$extensionsLoaded || !$caInstalled){
+
+    $iniPath = inimgmt::iniPath();
+    if(!is_string($iniPath)){
+        mklog0(3, "Failed to get the path of the loaded php.ini file");
         exit(1);
     }
-    echo "Ini settings set\n";
-    exit(0);
-}
 
-if(!inimgmt::doesSettingsMatch($settings)){
-    if(PHP_OS_FAMILY === 'Linux'){
-        echo "Running ini setting changes under sudo\n";
-        if(linuxcmd::sudo('php core/updateini.php setini') !== 0){
+    if(!is_writable($iniPath)){
+        if(is_admin::check()){
+            mklog0(3, "The loaded php.ini file is not editable even with admin/root privileges");
             exit(1);
         }
+
+        mklog0(2, "The loaded php.ini file is not editable, retrying as admin/root");
+        sleep(1);
+
+        if(PHP_OS_FAMILY === 'Windows'){
+            $exitCode = windowscmd::runElevated("php", ["core/updateini.php"]);
+        }
+        else{
+            $exitCode = linuxcmd::sudo('php core/updateini.php');
+        }
+
+        if($exitCode){
+            mklog0(3, "Failed to run as admin/root");
+            exit(1);
+        }
+
+        exit;
     }
-    else{
+
+    if(!$iniSettingsSet){
         if(!inimgmt::setIniSettings($settings)){
-            echo "Error: Failed to set recommended ini settings\n";
+            mklog0(3, "Failed to set recommended php.ini settings");
             exit(1);
         }
     }
-}
 
-if(!extensions::areLoaded($extensions)){
-    foreach($extensions as $extension){
-        if(!extensions::setEnabled($extension, true, true)){
-            echo "Error: Failed to enable extension " . $extension . "\n";
+    if(!$extensionsLoaded){
+        foreach($extensions as $extension){
+            if(!extensions::setEnabled($extension, true, true)){
+                mklog0(3, "Failed to enable extension $extension");
+                exit(1);
+            }
+        }
+    }
+
+    if(!$caInstalled){
+        $caBundlePath = dirname($iniPath) . '/cacert.pem';
+        if(!file_exists($caBundlePath)){
+            echo "Downloading curl CA bundle...\n";
+            if(!downloadCaBundle($caBundlePath)){
+                mklog0(2, "Could not download a CA bundle. Please install manually from https://curl.se/ca/cacert.pem to $caBundlePath");
+                exit(1);
+            }
+        }
+        if(!inimgmt::setIniSettings(["curl.cainfo" => $caBundlePath])){
+            mklog0(2, "Failed to update ini file with curl ca bundle");
             exit(1);
         }
     }

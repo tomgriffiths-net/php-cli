@@ -124,24 +124,71 @@ class cli_formatter{
  */
 class cmd{
     /**
-     * Runs a command in a new cmd window.
+     * Runs a command in a new terminal window.
+     * Windows: new cmd window. Linux desktop: first terminal emulator found.
+     * WSL: new Windows console window running the current distro, via Windows interop.
      *
      * @param string $command The command to run.
-     * @param boolean $keepOpen Weather to keep the new cmd window open.
+     * @param boolean $keepOpen Whether to keep the new window open after the command finishes.
      * @return void
      */
     public static function newWindow(string $command, bool $keepOpen=false):void{
         mklog(1, 'Starting process with command ' . $command);
-        $env = getEnvironment();
-        if($env['windows']){
+        $env = sysenv::terminalInfo();
+
+        // WSL has no Linux desktop, but we can open a window on the Windows desktop via interop.
+        // Require an interactive (non-SSH) session so the window lands on a desktop the user can see.
+        $isWSL = $env['wsl'] && $env['interactive'];
+
+        if(!$env['desktop'] && !$isWSL){
+            mklog(3, "You cannot run newWindow in this environment");
+            return;
+        }
+
+        if(PHP_OS_FAMILY === 'Windows'){
             pclose(popen('start cmd.exe /' . ($keepOpen ? "k" : "c") . ' "' . escapeshellcmd($command) . '"','r'));
         }
-        else{
-            if(!$env['desktop']){
-                mklog(3, "You cannot run newWindow in this environment");
+        elseif($isWSL){
+            // cmd.exe is normally on PATH under WSL; fall back to the default mount location
+            $cmdExe = trim((string) shell_exec('which cmd.exe 2>/dev/null'));
+            if($cmdExe === '' && is_executable('/mnt/c/Windows/System32/cmd.exe')){
+                $cmdExe = '/mnt/c/Windows/System32/cmd.exe';
+            }
+            if($cmdExe === ''){
+                mklog(3, "Failed to find cmd.exe (is WSL interop disabled?)");
                 return;
             }
 
+            // Write the command to a temp script so it never has to survive cmd.exe's
+            // quoting rules - only a plain file path crosses over to the Windows side.
+            $script = tempnam(sys_get_temp_dir(), 'newwin_');
+            if($script === false){
+                mklog(3, "Failed to create temp script for newWindow");
+                return;
+            }
+
+            $lines = [
+                '#!/bin/bash',
+                'rm -f -- ' . escapeshellarg($script), // self-clean; bash already has the file open
+                'cd ' . escapeshellarg((string) getcwd()),
+                $command,
+            ];
+            if($keepOpen){
+                $lines[] = 'exec bash';
+            }
+            file_put_contents($script, implode("\n", $lines) . "\n");
+
+            // Target the same distro we're running in (falls back to the default distro)
+            $distro    = getenv('WSL_DISTRO_NAME');
+            $distroArg = $distro ? '-d ' . escapeshellarg($distro) . ' ' : '';
+
+            // "start" opens a new console window (or Windows Terminal, if it's set as the default terminal)
+            shell_exec(
+                escapeshellarg($cmdExe) . ' /c start wsl.exe ' . $distroArg . '-e bash ' . escapeshellarg($script)
+                . ' >/dev/null 2>&1 &'
+            );
+        }
+        else{
             $terminal = null;
 
             foreach(['gnome-terminal', 'xterm', 'konsole', 'xfce4-terminal', 'lxterminal'] as $term){
@@ -1392,7 +1439,7 @@ class timetest{
 
         $line = str_replace("\\","\\\\",$line);
 
-        $return = eval("return " . $line);
+        $return = eval("return $line;");
 
         echo "\nReturn: " . json_encode($return,JSON_PRETTY_PRINT) . "\n";
 

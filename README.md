@@ -21,10 +21,9 @@ Anything that uses services or installs an application or manages other processe
 - **cli clear**: Clears the command window.
 - **pkgmgr install [package_id]**: Installs a package.
 - **pkgmgr list**: Lists the installed packages.
-- **pkgmgr list desc**: Lists the installed packages with their latest description.
+- **pkgmgr list -desc -deps**: Lists the installed packages with their description and dependencies.
 - **pkgmgr update**: Updates the installed packages.
-- **pkgmgr update [package_id]**: Updates a specific package.
-- **pkgmgr update-core**: Updates the core of PHP-CLI.
+- **pkgmgr update [package_id]**: Updates a specific package, if package id is "php_cli" it updates the core.
 - **timetest [function string]**: Allows a function string to be given and then shows fuction return in json and the time taken in seconds.
 - **exit**: Closes the current window.
 
@@ -60,34 +59,3 @@ command line argument conversion examples:
 - **json-read-cache-timeout**: Expects integer, default is 1. Specifies how long to wait before forgetting a cached json file.
 - **json-url-read-cache-timeout**: Expects integer, default is 5. Specifies how long to wait before forgetting a cached response from a web page that gives json.
 - **check-syntax**: Expects boolean, default is false. Specifies weather to validate the php syntax in a packages main.php before loading it (using php -l), but this is slow.
-
-# Package info
-Example package info:
-```json
-{
-    "id_name": "some_package",
-    "name": "Some Package",
-    "version": 5,
-    "author": "a_human",
-    "description": "This package does something cool :)",
-    "dependencies": {
-        "settings": 3,
-        "network": 2
-    }
-}
-```
-
-# cli::info()
-Example return:
-```json
-{
-    "version": 103,
-    "startTime": 1772574050.353874,
-    "pcName": "TomsLaptop",
-    "pcDrive": "C:",
-    "cpuThreads": "16",
-    "cpuType": "AMD64",
-    "phpVersionNumeric": 80412,
-    "phpVersion": "8.4.12"
-}
-```

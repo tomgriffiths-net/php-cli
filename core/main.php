@@ -22,7 +22,7 @@ class cli{
         }
         elseif($lines[0] === "reload"){
             $cmd = cmd::startScript() . " " . argsString();
-            if(getEnvironment()['desktop']){
+            if(sysenv::terminalInfo()['desktop']){
                 cmd::newWindow($cmd);
                 exit;
             }
@@ -91,11 +91,17 @@ class cli{
         if(class_exists($baseCommand)){
             if(method_exists($baseCommand,'command')){
                 $return = true;
+                $commandReturn = null;
                 try{
                     $baseCommand::command($line);
                 }
                 catch(Throwable $throwable){
                     mklog(3,"Something went wrong while trying to run: " . $baseCommand . " " . $line . " (" . substr($throwable,0,strpos($throwable,"\n")) . ")");
+                    $return = false;
+                }
+
+                if(is_bool($commandReturn) && $commandReturn === false){
+                    mklog(3, "The packages command handler reported an error");
                     $return = false;
                 }
             }
@@ -226,7 +232,7 @@ class cli{
 
         return explode(" && ", $line);
     }
-    private static function after(){
+    private static function after():void{
         global $arguments;
 
         if($arguments['no-loop'] === true){

@@ -48,7 +48,7 @@ if(!is_array($fileArguments) || array_is_list($fileArguments)){
     $fileArguments = [];
 }
 
-$arguments = (function(){
+$arguments = (function():array{
     global $argv;
     global $fileArguments;
 
@@ -275,116 +275,4 @@ function verboseLogging():bool{
 function argsString():string{
     global $argv;
     return implode(' ', array_map('escapeshellarg', array_slice($argv, 1)));
-}
-
-/**
- * Gets info on the environment php-cli is running in. (ClaudeAI and ChatGPT helped, mostly works)
- *
- * @return array An array of booleans with string keys; windows, linux, desktop, headless, remote_desktop, ssh, modern_terminal, compat_layer, tty, interactive, daemon_or_cron.
- */
-function getEnvironment():array{
-    $isWindows = PHP_OS_FAMILY === 'Windows';
-    $isLinux   = PHP_OS_FAMILY === 'Linux';
-
-    // Unified environment accessor
-    $env = static fn(string $key): string|false => getenv($key);
-
-    // --- Detect TTY / interactive console ---
-    $hasTty = false;
-    if(function_exists('stream_isatty')){
-        $hasTty = @stream_isatty(STDIN) || @stream_isatty(STDOUT);
-    }
-    elseif(function_exists('posix_isatty')){
-        $hasTty = @posix_isatty(STDIN) || @posix_isatty(STDOUT);
-    }
-
-    // --- Shared checks ---
-    $isSSH = !empty($env('SSH_CLIENT')) || !empty($env('SSH_TTY'));
-
-    // --- Defaults ---
-    $isDesktop        = false;
-    $isRemoteDesktop  = false;
-    $isModernTerminal = false;
-    $isCompatLayer    = false;
-
-    if($isWindows){
-        // CLIENTNAME is far more reliable than SESSIONNAME
-        // Local sessions normally report "Console"
-        // RDP sessions report remote client hostname
-        $clientName = $env('CLIENTNAME');
-        $isRemoteDesktop = !empty($clientName) && strtoupper($clientName) !== 'CONSOLE';
-
-        // If we have a TTY and are not running through SSH,
-        // assume an interactive desktop session
-        $isDesktop = $hasTty && !$isSSH;
-
-        // Modern terminal detection
-        $isModernTerminal =
-            !empty($env('WT_SESSION')) ||      // Windows Terminal
-            !empty($env('WT_PROFILE_ID')) ||
-            !empty($env('ConEmuPID')) ||       // ConEmu
-            !empty($env('TERM_PROGRAM')) ||    // VSCode/etc
-            !empty($env('ANSICON'));
-
-        // Compatibility / subsystem layers
-        $isCompatLayer =
-            !empty($env('MSYSTEM')) ||         // MSYS2 / Git Bash
-            !empty($env('CYGWIN'));
-    
-    }
-    elseif($isLinux){
-
-        $hasDisplay = !empty($env('DISPLAY')) || !empty($env('WAYLAND_DISPLAY'));
-
-        $hasDesktopSession = !empty($env('DESKTOP_SESSION')) || !empty($env('XDG_CURRENT_DESKTOP')) || !empty($env('GNOME_DESKTOP_SESSION_ID')) || !empty($env('KDE_FULL_SESSION'));
-
-        $isDesktop = $hasDisplay && $hasDesktopSession && !$isSSH;
-
-        // Remote desktop detection
-        $isRemoteDesktop = !empty($env('XRDP_SESSION')) || !empty($env('X2GO_SESSION'));
-
-        // Modern terminal detection
-        $term        = $env('TERM');
-        $termProgram = $env('TERM_PROGRAM');
-
-        $isModernTerminal = !empty($env('VTE_VERSION')) || !empty($termProgram) ||
-            in_array(
-                $term,
-                [
-                    'xterm-256color',
-                    'screen-256color',
-                    'tmux-256color',
-                    'alacritty',
-                    'wezterm',
-                ],
-                true
-            );
-
-        // Wine / WSL / compatibility layers
-        $isCompatLayer = !empty($env('WINEPREFIX')) || file_exists('/proc/sys/fs/binfmt_misc/WSLInterop');
-        
-    }
-    else{
-        $isDesktop = $hasTty && !$isSSH;
-    }
-
-    return [
-
-        // Platform
-        'windows'         => $isWindows,
-        'linux'           => $isLinux,
-
-        // Environment type
-        'desktop'         => $isDesktop,
-        'headless'        => !$isDesktop,
-        'remote_desktop'  => $isRemoteDesktop,
-        'ssh'             => $isSSH,
-        'modern_terminal' => $isModernTerminal,
-        'compat_layer'    => $isCompatLayer,
-
-        // TTY / interactivity
-        'tty'             => $hasTty,
-        'interactive'     => $hasTty && !$isSSH,
-        'daemon_or_cron'  => !$hasTty && !$isSSH,
-    ];
 }

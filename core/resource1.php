@@ -712,6 +712,363 @@ class linuxcmd{
     }
 }
 /**
+ * Functions for windows specific things.
+ */
+class windowscmd{
+    /**
+     * Quote one argument using Windows command-line rules, escape quotes and slashes.
+     * @param string $a The argument that will be quoted.
+     * @return string The quoted argument.
+     */
+    public static function processArg(string $a): string {
+        if($a !== '' && !preg_match('/[\s"]/', $a)){
+            return $a;
+        }
+        $a = preg_replace('/(\\\\*)"/', '$1$1\\"', $a); // escape quotes (and backslashes before them)
+        $a = preg_replace('/(\\\\+)$/', '$1$1', $a);    // double trailing backslashes
+        return '"' . $a . '"';
+    }
+
+    /**
+     * Start $exe elevated (triggers UAC) and waits for the exe to exit.
+     * @param string $exe 
+     * @param array $args 
+     * @return int The exit code of the process or 1223 (ERROR_CANCELLED) if the user clicks "No" on the UAC prompt.
+     */
+    public static function runElevated(string $exe, array $args = []): int {
+        $argStr  = implode(' ', array_map('windowscmd::processArg', $args));
+
+        $script = 'try { $p = Start-Process -FilePath ' . self::psQuote($exe)
+            . ($argStr !== '' ? ' -ArgumentList ' . self::psQuote($argStr) : '')
+            . ' -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { exit 1223 }';
+
+        // -EncodedCommand (UTF-16LE base64) avoids cmd.exe/PowerShell quoting problems entirely
+        $encoded = base64_encode(iconv('UTF-8', 'UTF-16LE', $script));
+        passthru("powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded", $code);
+        return $code;
+    }
+
+    /**
+     * Quotes a string.
+     * @param string $s The string to be quoted.
+     * @return string The quoted string.
+     */
+    public static function psQuote(string $s):string{
+        return "'" . str_replace("'", "''", $s) . "'";
+    }
+}
+class sysenv{
+    /**
+     * Returns the full detected environment info.
+     * Cached per-request (static var) since none of this changes mid-script.
+     */
+    public static function info():array{
+        static $cache = null;
+        if(is_array($cache)){
+            return $cache;
+        }
+
+        $family = self::detectFamily();
+
+        $data = [
+            'family'      => $family,        // windows | linux | darwin | bsd | unknown
+            'distro'      => null,           // ubuntu, debian, linuxmint, kali, ... (linux only)
+            'distro_like' => [],             // e.g. ['debian'] for mint/kali - fallback matching
+            'version'     => null,           // full version: 22.04, 12, 11, 10, 23.1 ...
+            'major'       => null,           // major version only: 22, 12, 11, 10, 23 ...
+            'build'       => null,           // windows build number, if applicable
+            'arch'        => self::detectArch(),
+            'id'          => null,           // combined normalized id, e.g. "ubuntu-22"
+        ];
+
+        switch ($family) {
+            case 'windows':
+                $win = self::detectWindows();
+                $data['version'] = $win['version'];
+                $data['major']   = $win['version']; // already just "10" / "11"
+                $data['build']   = $win['build'];
+                $data['id']      = 'windows-' . $win['version'];
+                break;
+
+            case 'linux':
+                $lin = self::detectLinuxDistro();
+                $data['distro']      = $lin['id'];
+                $data['distro_like'] = $lin['id_like'];
+                $data['version']     = $lin['version'];
+                $data['major']       = $lin['major'];
+                $data['id']          = $lin['id'] . ($lin['major'] ? '-' . $lin['major'] : '');
+                break;
+
+            case 'darwin':
+                $ver = trim((string) shell_exec('sw_vers -productVersion 2>/dev/null'));
+                $ver = $ver !== '' ? $ver : php_uname('r');
+                $data['version'] = $ver;
+                $data['major']   = self::majorVersion($ver);
+                $data['id']      = 'darwin-' . $data['major'];
+                break;
+
+            default:
+                $data['id'] = 'unknown';
+        }
+
+        return $cache = $data;
+    }
+
+    /**
+     * Gets info on the terminal session php-cli is running in.
+     * Platform info (windows/linux/etc.) lives in sysenv::info().
+     * Cached per-request (static var) since none of this changes mid-script.
+     *
+     * @return array An array of booleans with string keys; desktop, headless, remote_desktop, ssh,
+     *               modern_terminal, compat_layer, wsl, tty, interactive, daemon_or_cron.
+     */
+    public static function terminalInfo():array{
+        static $cache = null;
+        if(is_array($cache)){
+            return $cache;
+        }
+
+        $family = self::info()['family'];
+
+        // Unified environment accessor
+        $env = static fn(string $key): string|false => getenv($key);
+
+        // --- Detect TTY / interactive console ---
+        // STDIN/STDOUT are only defined under the CLI SAPI
+        $hasTty = false;
+        if(defined('STDIN') && defined('STDOUT')){
+            if(function_exists('stream_isatty')){
+                $hasTty = @stream_isatty(STDIN) || @stream_isatty(STDOUT);
+            }
+            elseif(function_exists('posix_isatty')){
+                $hasTty = @posix_isatty(STDIN) || @posix_isatty(STDOUT);
+            }
+        }
+
+        // --- Shared checks ---
+        $isSSH = !empty($env('SSH_CLIENT')) || !empty($env('SSH_TTY'));
+
+        // --- Defaults ---
+        $isDesktop        = false;
+        $isRemoteDesktop  = false;
+        $isModernTerminal = false;
+        $isCompatLayer    = false;
+        $isWSL            = false;
+
+        switch ($family) {
+            case 'windows':
+                // CLIENTNAME is far more reliable than SESSIONNAME
+                // Local sessions normally report "Console"
+                // RDP sessions report remote client hostname
+                $clientName = $env('CLIENTNAME');
+                $isRemoteDesktop = !empty($clientName) && strtoupper($clientName) !== 'CONSOLE';
+
+                // If we have a TTY and are not running through SSH,
+                // assume an interactive desktop session
+                $isDesktop = $hasTty && !$isSSH;
+
+                // Modern terminal detection
+                $isModernTerminal =
+                    !empty($env('WT_SESSION')) ||      // Windows Terminal
+                    !empty($env('WT_PROFILE_ID')) ||
+                    !empty($env('ConEmuPID')) ||       // ConEmu
+                    !empty($env('TERM_PROGRAM')) ||    // VSCode/etc
+                    !empty($env('ANSICON'));
+
+                // Compatibility / subsystem layers
+                $isCompatLayer =
+                    !empty($env('MSYSTEM')) ||         // MSYS2 / Git Bash
+                    !empty($env('CYGWIN'));
+                break;
+
+            case 'linux':
+                // WSL: WSL_DISTRO_NAME / WSL_INTEROP are set for processes launched through wsl.exe.
+                // The interop file can be "WSLInterop" or "WSLInterop-late" depending on WSL version.
+                // Under WSL there is no Linux desktop - Windows owns it - so 'desktop' stays false
+                // and callers should check 'wsl' to open windows via Windows interop instead.
+                $isWSL =
+                    !empty($env('WSL_DISTRO_NAME')) ||
+                    !empty($env('WSL_INTEROP')) ||
+                    file_exists('/proc/sys/fs/binfmt_misc/WSLInterop') ||
+                    file_exists('/proc/sys/fs/binfmt_misc/WSLInterop-late');
+
+                $hasDisplay = !empty($env('DISPLAY')) || !empty($env('WAYLAND_DISPLAY'));
+
+                $hasDesktopSession =
+                    !empty($env('DESKTOP_SESSION')) ||
+                    !empty($env('XDG_CURRENT_DESKTOP')) ||
+                    !empty($env('GNOME_DESKTOP_SESSION_ID')) ||
+                    !empty($env('KDE_FULL_SESSION'));
+
+                $isDesktop = $hasDisplay && $hasDesktopSession && !$isSSH;
+
+                // Remote desktop detection
+                $isRemoteDesktop = !empty($env('XRDP_SESSION')) || !empty($env('X2GO_SESSION'));
+
+                // Modern terminal detection
+                $term        = $env('TERM');
+                $termProgram = $env('TERM_PROGRAM');
+
+                $isModernTerminal = !empty($env('VTE_VERSION')) || !empty($termProgram) ||
+                    in_array(
+                        $term,
+                        [
+                            'xterm-256color',
+                            'screen-256color',
+                            'tmux-256color',
+                            'alacritty',
+                            'wezterm',
+                        ],
+                        true
+                    );
+
+                // Wine / WSL / compatibility layers
+                $isCompatLayer = $isWSL || !empty($env('WINEPREFIX'));
+                break;
+
+            default:
+                $isDesktop = $hasTty && !$isSSH;
+        }
+
+        return $cache = [
+            // Environment type
+            'desktop'         => $isDesktop,
+            'headless'        => !$isDesktop,
+            'remote_desktop'  => $isRemoteDesktop,
+            'ssh'             => $isSSH,
+            'modern_terminal' => $isModernTerminal,
+            'compat_layer'    => $isCompatLayer,
+            'wsl'             => $isWSL,
+
+            // TTY / interactivity
+            'tty'             => $hasTty,
+            'interactive'     => $hasTty && !$isSSH,
+            'daemon_or_cron'  => !$hasTty && !$isSSH,
+        ];
+    }
+
+    /**
+     * Check compatibility against a list of allowed patterns.
+     * Supports exact ids, distro-only (no version = any version),
+     * and "*-like" family fallbacks via distro_like.
+     *
+     * Examples:
+     *   sysenv_matches(['ubuntu-22', 'ubuntu-24'])
+     *   sysenv_matches(['ubuntu'])              // any ubuntu version
+     *   sysenv_matches(['debian'])              // matches debian AND mint/kali (via id_like)
+     *   sysenv_matches(['windows-10', 'windows-11'])
+     */
+    public static function matches(array $allowed):bool{
+        $info = self::info();
+
+        foreach ($allowed as $pattern) {
+            // Exact full id match
+            if ($pattern === $info['id']) {
+                return true;
+            }
+            // Distro/family-only match (no version specified)
+            if ($info['distro'] !== null && $pattern === $info['distro']) {
+                return true;
+            }
+            if ($info['family'] !== null && $pattern === $info['family']) {
+                return true;
+            }
+            // "id_like" fallback, e.g. pattern "debian" matches Mint/Kali
+            if (in_array($pattern, $info['distro_like'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function architecture():string{
+        return self::info()['arch'];
+    }
+
+    /** Is this a 64-bit architecture? */
+    public static function is64bit():bool{
+        return in_array(self::info()['arch'], ['x86_64', 'amd64', 'arm64', 'aarch64'], true);
+    }
+
+    private static function detectFamily():string{
+        return match (PHP_OS_FAMILY){
+            'Windows' => 'windows',
+            'Linux'   => 'linux',
+            'Darwin'  => 'darwin',
+            'BSD'     => 'bsd',
+            default   => 'unknown',
+        };
+    }
+
+    private static function detectArch():string{
+        $m = php_uname('m');
+        return $m !== '' ? strtolower($m) : 'unknown';
+    }
+
+    /** Extracts the major (leading numeric) component from a version string. */
+    private static function majorVersion(?string $version):?string{
+        if($version === null || $version === ''){
+            return null;
+        }
+        if(preg_match('/^(\d+)/', $version, $m)){
+            return $m[1];
+        }
+        return $version;
+    }
+
+    /**
+     * Reads /etc/os-release for machine-readable distro identity.
+     * ID = e.g. ubuntu, debian, linuxmint, kali, fedora, arch
+     * ID_LIKE = space separated fallback family, e.g. "debian" for mint/kali
+     */
+    private static function detectLinuxDistro():array{
+        $result = ['id' => 'linux', 'id_like' => [], 'version' => null, 'major' => null];
+
+        if (is_readable('/etc/os-release')) {
+            $data = parse_ini_file('/etc/os-release') ?: [];
+
+            if (!empty($data['ID'])) {
+                $result['id'] = strtolower($data['ID']);
+            }
+            if (!empty($data['ID_LIKE'])) {
+                $result['id_like'] = array_map('strtolower', explode(' ', $data['ID_LIKE']));
+            }
+            if (!empty($data['VERSION_ID'])) {
+                $result['version'] = $data['VERSION_ID'];
+                $result['major']   = self::majorVersion($data['VERSION_ID']);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Windows 10 vs 11 both report kernel "10.0.x" - the only reliable
+     * signal is the build number. 22000+ = Windows 11.
+     */
+    private static function detectWindows():array{
+        $build = null;
+
+        $out = shell_exec('reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v CurrentBuildNumber 2>NUL');
+        if ($out && preg_match('/CurrentBuildNumber\s+REG_SZ\s+(\d+)/i', $out, $m)) {
+            $build = (int) $m[1];
+        }
+
+        // Fallback if registry query fails for some reason
+        if ($build === null) {
+            $release = php_uname('r'); // e.g. "10.0.22631"
+            if (preg_match('/(\d+)$/', $release, $m)) {
+                $build = (int) $m[1];
+            }
+        }
+
+        $version = ($build !== null && $build >= 22000) ? '11' : '10';
+
+        return ['version' => $version, 'build' => $build];
+    }
+}
+/**
  * Similar to mklog() but if mklog is not defined it just echoes the message and type.
  *
  * @param integer $type The numerical message type, see mklog().
@@ -725,7 +1082,27 @@ function mklog0(int $type, string $message):void{
     else{
         $type = min(max($type,0),3);
         if($type){
-            echo ["General","Warning","Error"][$type-1] . ": " . $message . "\n";
+            echo date("Y-m-d_H:i:s:") . substr(floor(microtime(true)*1000), -3) . ": " . ["General","Warning","Error"][$type-1] . ": " . $message . "\n";
         }
     }
+}
+/**
+ * Downloads a CA bundle for curl from https://curl.se/ca/cacert.pem using file_get_contents.
+ * @param string $destPath The path to put the certificate file.
+ * @return bool Indicates success.
+ */
+function downloadCaBundle(string $destPath):bool{
+    $data = @file_get_contents('https://curl.se/ca/cacert.pem');
+
+    if(!is_string($data)){
+        mklog0(2, "Failed to download CA bundle.");
+        return false;
+    }
+
+    if(strlen($data) < 100000 || !str_contains($data, '-----BEGIN CERTIFICATE-----')){
+        mklog0(2, "Downloaded file does not look like a valid CA bundle.");
+        return false;
+    }
+
+    return (bool) @file_put_contents($destPath, $data);
 }
