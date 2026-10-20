@@ -308,11 +308,11 @@ class pkgmgr{
 
         if(!is_string($version)){
             $mainInfo = self::onlinePackageInfo($packageId);
-            if(!is_array($mainInfo) || !isset($mainInfo['latestVersion'])){
+            if(!is_array($mainInfo) || !isset($mainInfo['latestVersion']['version'])){
                 mklog(3, "Failed to get latest version info for package $packageId");
                 return false;
             }
-            $version = $mainInfo['latestVersion'];
+            $version = $mainInfo['latestVersion']['version'];
         }
         
         if(!self::isValidVersion($version)){
@@ -438,7 +438,7 @@ class pkgmgr{
         }
 
         foreach($packages as $package){
-            if(self::isPackageDownloaded($package)){
+            if(!self::isPackageDownloaded($package)){
                 return false;
             }
 
